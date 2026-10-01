@@ -98,6 +98,45 @@ async function paystackRequest(method, path, body) {
   return json.data;
 }
 
+// ---------- PAYSTACK TRANSFERS (automatic payouts to sellers/admin) ----------
+// Paystack's list of Nigerian banks rarely changes, so it's cached in memory
+// for an hour instead of calling the API on every page load.
+let bankListCache = null;
+let bankListCacheAt = 0;
+async function getBankList() {
+  const ONE_HOUR = 60 * 60 * 1000;
+  if (bankListCache && (Date.now() - bankListCacheAt) < ONE_HOUR) return bankListCache;
+  const data = await paystackRequest('GET', '/bank?currency=NGN');
+  bankListCache = data.map(b => ({ name: b.name, code: b.code }));
+  bankListCacheAt = Date.now();
+  return bankListCache;
+}
+
+// Confirms an account number actually belongs to the name on file at that
+// bank, before any money is sent to it — catches typos and wrong accounts.
+async function resolveBankAccount(accountNumber, bankCode) {
+  const data = await paystackRequest('GET', `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+  return data.account_name;
+}
+
+// A "transfer recipient" is Paystack's record of who to pay; it has to be
+// created once before a transfer can be sent to that account.
+async function createTransferRecipient(name, accountNumber, bankCode) {
+  const data = await paystackRequest('POST', '/transferrecipient', {
+    type: 'nuban', name, account_number: accountNumber, bank_code: bankCode, currency: 'NGN'
+  });
+  return data.recipient_code;
+}
+
+// Sends real money out of the SellHub Paystack balance to a recipient.
+// `reference` is our own id (e.g. "seller-wd-123") so the webhook can later
+// match the result back to the right withdrawal record.
+async function initiateTransfer(amount, recipientCode, reason, reference) {
+  return paystackRequest('POST', '/transfer', {
+    source: 'balance', amount: Math.round(amount * 100), recipient: recipientCode, reason, reference
+  });
+}
+
 // payments.json is created automatically the first time it's needed.
 function readPayments() {
   try { return readJSON('payments.json'); } catch (e) { return []; }
@@ -150,6 +189,62 @@ function creditPaystackPayment(reference, tx) {
   writeJSON('customers.json', customers);
 
   return { ok: true, alreadyCredited: false };
+}
+
+// Confirms (or rolls back) a Paystack transfer once it finishes. `reference`
+// is the one we set ourselves in initiateTransfer: "seller-wd-<id>" or
+// "admin-wd-<id>" — that's how we know which record this result belongs to.
+// Guarded against Paystack sending the same webhook more than once: a
+// withdrawal only gets acted on while it's still "Processing".
+function handleTransferWebhook(eventType, reference, failReason) {
+  const succeeded = eventType === 'transfer.success';
+
+  if (reference.startsWith('seller-wd-')) {
+    const id = Number(reference.slice('seller-wd-'.length));
+    const withdrawals = readJSON('withdrawals.json');
+    const withdrawal = withdrawals.find(w => w.id === id);
+    if (!withdrawal || withdrawal.status !== 'Processing') return;
+
+    withdrawal.status = succeeded ? 'Approved' : 'Rejected';
+    if (!succeeded) withdrawal.failReason = failReason || eventType;
+    writeJSON('withdrawals.json', withdrawals);
+
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+    if (seller) {
+      const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Processing' && t.amount === withdrawal.amount);
+      if (txn) txn.status = withdrawal.status;
+      if (!succeeded) {
+        // The payout never arrived — give the seller their money back.
+        seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;
+      }
+      writeJSON('sellers.json', sellers);
+
+      const phone = seller.whatsappNumber || seller.businessPhone || seller.phone;
+      if (succeeded) {
+        sendWhatsApp(phone, `✅ Your withdrawal of ₦${withdrawal.netAmount.toLocaleString()} has been paid to your ${withdrawal.bank} account ending ${String(withdrawal.accountNumber).slice(-4)}.`);
+      } else {
+        sendWhatsApp(phone, `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} could not be paid out, so it's been refunded to your SellHub wallet. Please check your bank details and try again.`);
+      }
+    }
+    notifyAdmin(succeeded
+      ? `SellHub: Payout of ₦${withdrawal.netAmount.toLocaleString()} to ${withdrawal.storeName || withdrawal.sellerEmail} succeeded ✅`
+      : `SellHub: Payout to ${withdrawal.storeName || withdrawal.sellerEmail} FAILED ❌ (₦${withdrawal.amount.toLocaleString()}, refunded to their wallet). Reason: ${failReason || eventType}`);
+
+  } else if (reference.startsWith('admin-wd-')) {
+    const id = Number(reference.slice('admin-wd-'.length));
+    const adminWithdrawals = readJSON('admin-withdrawals.json');
+    const withdrawal = adminWithdrawals.find(w => w.id === id);
+    if (!withdrawal || withdrawal.status !== 'Processing') return;
+
+    withdrawal.status = succeeded ? 'Approved' : 'Failed';
+    if (!succeeded) withdrawal.failReason = failReason || eventType;
+    writeJSON('admin-withdrawals.json', adminWithdrawals);
+
+    notifyAdmin(succeeded
+      ? `SellHub: Your withdrawal of ₦${withdrawal.amount.toLocaleString()} to your bank succeeded ✅`
+      : `SellHub: Your withdrawal of ₦${withdrawal.amount.toLocaleString()} FAILED ❌ — no money left the account. Reason: ${failReason || eventType}`);
+  }
 }
 
 // Reads the request body exactly as sent (needed to check Paystack's signature).
@@ -573,11 +668,11 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/admin/withdraw') {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
-    readBody(req).then(({ amount, bank, accountNumber, accountName, pin }) => {
+    readBody(req).then(async ({ amount, bank, bankCode, accountNumber, accountName, pin }) => {
       amount = Number(amount);
       if (!amount || amount <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid amount.' });
-      if (!bank || !accountNumber || !accountName) {
-        return sendJSON(res, { ok: false, message: 'Please fill in the bank details.' });
+      if (!bank || !bankCode || !accountNumber || !accountName) {
+        return sendJSON(res, { ok: false, message: 'Please select your bank and verify your account first.' });
       }
       // A second, separate check just for moving money out — even inside an
       // already-logged-in admin session, so a browser left open (or a
@@ -589,7 +684,9 @@ const server = http.createServer((req, res) => {
 
       const adminWithdrawals = readJSON('admin-withdrawals.json');
       const totalRevenue = getPlatformRevenue();
-      const totalWithdrawn = adminWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+      const totalWithdrawn = adminWithdrawals
+        .filter(w => w.status !== 'Failed')
+        .reduce((sum, w) => sum + w.amount, 0);
       const balance = totalRevenue - totalWithdrawn;
 
       if (amount > balance) {
@@ -598,13 +695,48 @@ const server = http.createServer((req, res) => {
 
       const withdrawal = {
         id: Date.now(),
-        amount, bank, accountNumber, accountName,
+        amount, bank, bankCode, accountNumber, accountName,
+        status: 'Processing',
         date: new Date().toISOString()
       };
-      adminWithdrawals.push(withdrawal);
-      writeJSON('admin-withdrawals.json', adminWithdrawals);
 
-      sendJSON(res, { ok: true, message: 'Withdrawal recorded.', balance: balance - amount, withdrawal });
+      // Send the money for real, right now, via Paystack. Nothing is saved
+      // to admin-withdrawals.json unless the transfer actually starts, so a
+      // failed attempt never looks like money that left the account.
+      try {
+        const recipientCode = await createTransferRecipient(accountName, accountNumber, bankCode);
+        const reference = `admin-wd-${withdrawal.id}`;
+        const transfer = await initiateTransfer(amount, recipientCode, 'SellHub admin withdrawal', reference);
+        withdrawal.transferCode = transfer.transfer_code;
+        withdrawal.transferReference = reference;
+        if (transfer.status === 'otp') withdrawal.needsOtp = true;
+
+        adminWithdrawals.push(withdrawal);
+        writeJSON('admin-withdrawals.json', adminWithdrawals);
+
+        sendJSON(res, {
+          ok: true,
+          message: transfer.status === 'otp'
+            ? 'Transfer started — Paystack sent an OTP to finish it. Enter it below to complete the payout.'
+            : 'Transfer sent! It will show as Paid once Paystack confirms it (usually under a minute).',
+          balance: balance - amount,
+          withdrawal
+        });
+      } catch (err) {
+        sendJSON(res, { ok: false, message: 'Transfer failed to start: ' + err.message + '. Nothing was withdrawn — check your Paystack balance and bank details, then try again.' });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/transfers/finalize-otp') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ transferCode, otp }) => {
+      if (!transferCode || !otp) return sendJSON(res, { ok: false, message: 'Enter the OTP Paystack sent you.' });
+      paystackRequest('POST', '/transfer/finalize_transfer', { transfer_code: transferCode, otp })
+        .then(() => sendJSON(res, { ok: true, message: 'OTP accepted — the transfer will confirm shortly.' }))
+        .catch(err => sendJSON(res, { ok: false, message: err.message || 'Could not finalize that transfer.' }));
     });
     return;
   }
@@ -621,7 +753,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/admin/withdrawals/decide') {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
-    readBody(req).then(({ id, decision }) => {
+    readBody(req).then(async ({ id, decision }) => {
       if (!['Approved', 'Rejected'].includes(decision)) {
         return sendJSON(res, { ok: false, message: 'Invalid decision.' });
       }
@@ -630,26 +762,56 @@ const server = http.createServer((req, res) => {
       if (!withdrawal) return sendJSON(res, { ok: false, message: 'Withdrawal not found.' });
       if (withdrawal.status !== 'Pending') return sendJSON(res, { ok: false, message: 'This withdrawal was already decided.' });
 
-      withdrawal.status = decision;
-      writeJSON('withdrawals.json', withdrawals);
+      if (decision === 'Rejected') {
+        withdrawal.status = 'Rejected';
+        writeJSON('withdrawals.json', withdrawals);
 
-      const sellers = readJSON('sellers.json');
-      const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
-      if (seller) {
-        // Keep the matching entry in the seller's own transaction history
-        // consistent with the admin decision.
-        const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
-        if (txn) txn.status = decision;
-
-        // A rejected withdrawal returns the held funds to the seller's wallet
-        // (they were deducted up-front when the request was made).
-        if (decision === 'Rejected') {
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Rejected';
+          // A rejected withdrawal returns the held funds to the seller's
+          // wallet (they were deducted up-front when the request was made).
           seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;
+          writeJSON('sellers.json', sellers);
         }
-        writeJSON('sellers.json', sellers);
+        return sendJSON(res, { ok: true, message: 'Withdrawal rejected and refunded to the seller\'s wallet.' });
       }
 
-      sendJSON(res, { ok: true, message: `Withdrawal ${decision.toLowerCase()}.` });
+      // Approving sends the real payout via Paystack right now, rather than
+      // just flipping a status flag. The request stays Pending (so nothing
+      // looks paid, and it can be retried) unless the transfer actually starts.
+      if (!withdrawal.bankCode) {
+        return sendJSON(res, { ok: false, message: 'This request was submitted before bank verification was added — ask the seller to delete and resubmit it, or pay them manually and reject this one.' });
+      }
+      try {
+        const recipientCode = await createTransferRecipient(withdrawal.accountName, withdrawal.accountNumber, withdrawal.bankCode);
+        const reference = `seller-wd-${withdrawal.id}`;
+        const transfer = await initiateTransfer(withdrawal.netAmount, recipientCode, `SellHub withdrawal for ${withdrawal.storeName || withdrawal.sellerEmail}`, reference);
+        withdrawal.status = 'Processing';
+        withdrawal.transferCode = transfer.transfer_code;
+        withdrawal.transferReference = reference;
+        if (transfer.status === 'otp') withdrawal.needsOtp = true;
+        writeJSON('withdrawals.json', withdrawals);
+
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Processing';
+          writeJSON('sellers.json', sellers);
+        }
+
+        sendJSON(res, {
+          ok: true,
+          message: transfer.status === 'otp'
+            ? 'Transfer started — Paystack needs an OTP to finish it. Enter it from the withdrawal list to complete the payout.'
+            : 'Transfer sent! It will show as Paid once Paystack confirms it (usually under a minute).'
+        });
+      } catch (err) {
+        sendJSON(res, { ok: false, message: 'Transfer failed to start: ' + err.message + '. The request is still Pending — fix the issue (e.g. low Paystack balance) and try again.' });
+      }
     });
     return;
   }
@@ -1042,6 +1204,16 @@ const server = http.createServer((req, res) => {
         } catch (err) {
           console.error('Paystack webhook verify failed:', err.message);
           res.writeHead(500); res.end(); return; // non-200 makes Paystack retry later
+        }
+      } else if (
+        ['transfer.success', 'transfer.failed', 'transfer.reversed'].includes(event.event) &&
+        event.data && event.data.reference
+      ) {
+        try {
+          handleTransferWebhook(event.event, event.data.reference, event.data.reason || (event.data.failures && event.data.failures.reason));
+        } catch (err) {
+          console.error('Paystack transfer webhook handling failed:', err.message);
+          res.writeHead(500); res.end(); return;
         }
       }
       res.writeHead(200); res.end();
@@ -1611,14 +1783,36 @@ const server = http.createServer((req, res) => {
     return sendJSON(res, { ok: true, sellerWithdrawalFeePercent });
   }
 
+  // ---------- BANKS (used by both seller and admin withdrawal forms) ----------
+  if (req.method === 'GET' && req.url === '/api/banks') {
+    const session = requireAuth(req, res, null);
+    if (!session) return;
+    getBankList()
+      .then(banks => sendJSON(res, { ok: true, banks }))
+      .catch(err => sendJSON(res, { ok: false, message: 'Could not load the bank list: ' + err.message }));
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/resolve-account') {
+    const session = requireAuth(req, res, null);
+    if (!session) return;
+    readBody(req).then(({ bankCode, accountNumber }) => {
+      if (!bankCode || !accountNumber) return sendJSON(res, { ok: false, message: 'Select a bank and enter the account number.' });
+      resolveBankAccount(accountNumber, bankCode)
+        .then(accountName => sendJSON(res, { ok: true, accountName }))
+        .catch(err => sendJSON(res, { ok: false, message: err.message || 'Could not verify that account.' }));
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/seller/withdraw') {
     const session = requireAuth(req, res, 'seller');
     if (!session) return;
-    readBody(req).then(({ amount, bank, accountNumber, accountName }) => {
+    readBody(req).then(({ amount, bank, bankCode, accountNumber, accountName }) => {
       amount = Number(amount);
       if (!amount || amount <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid amount.' });
-      if (!bank || !accountNumber || !accountName) {
-        return sendJSON(res, { ok: false, message: 'Please fill in your bank details.' });
+      if (!bank || !bankCode || !accountNumber || !accountName) {
+        return sendJSON(res, { ok: false, message: 'Please select your bank and verify your account before withdrawing.' });
       }
 
       const sellers = readJSON('sellers.json');
@@ -1634,8 +1828,9 @@ const server = http.createServer((req, res) => {
       }
 
       // Deduct immediately so the same funds can't be withdrawn twice while
-      // this request is pending review. For the MVP, withdrawals are
-      // approved manually — see withdrawals.json.
+      // this request is pending review. Once an admin approves it, SellHub
+      // sends the real money automatically via Paystack Transfers — see
+      // /api/admin/withdrawals/decide and the transfer.* webhook handling.
       seller.walletBalance -= amount;
       seller.transactions = seller.transactions || [];
       seller.transactions.unshift({
@@ -1649,7 +1844,7 @@ const server = http.createServer((req, res) => {
         sellerEmail: session.email,
         storeName: seller.businessName,
         amount, fee, netAmount,
-        bank, accountNumber, accountName,
+        bank, bankCode, accountNumber, accountName,
         status: 'Pending',
         date: new Date().toISOString()
       };
