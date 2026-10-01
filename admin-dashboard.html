@@ -1,657 +1,2258 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — SellHub</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560;620&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
-    --mint-100:#EAF7EF; --mint-50:#F5FBF7; --ink:#0B0F0C; --gray-600:#5B6B62; --gray-300:#DCE6E0;
-    --sidebar-w:250px;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink); background:var(--mint-50);}
-  h1,h2,h3{font-family:'Fraunces',serif; font-weight:560; margin:0;}
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const { sendOTPEmail, sendEmail } = require('./mailer');
+const { verifyGoogleToken } = require('./googleAuth');
+const { sendWhatsApp } = require('./whatsapp');
 
-  .app-shell{display:flex; min-height:100vh;}
-
-  .sidebar{
-    width:var(--sidebar-w); flex-shrink:0; background:linear-gradient(175deg,var(--green-900), #082A1C);
-    color:#fff; display:flex; flex-direction:column; padding:26px 18px; position:sticky; top:0; height:100vh;
-  }
-  .sidebar-logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:620; font-size:18px; padding:0 8px 26px;}
-  .sidebar-logo-mark{width:30px; height:30px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-600)); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0;}
-  .sidebar-badge{font-size:10.5px; font-weight:700; color:rgba(255,255,255,0.55); letter-spacing:0.06em; text-transform:uppercase; padding:0 8px 14px;}
-  .nav-item{display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; color:rgba(255,255,255,0.75); font-weight:700; font-size:13.5px; cursor:pointer; margin-bottom:4px; transition:background .15s, color .15s;}
-  .nav-item:hover{background:rgba(255,255,255,0.06); color:#fff;}
-  .nav-item.active{background:rgba(63,193,127,0.18); color:#fff;}
-  .nav-icon{width:20px; text-align:center; flex-shrink:0; font-size:15px;}
-  .nav-badge{margin-left:auto; background:#E85D5D; color:#fff; font-size:10px; font-weight:800; border-radius:100px; padding:2px 7px; min-width:18px; text-align:center;}
-  .sidebar-spacer{flex:1;}
-  .sidebar-logout{display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:12px; color:rgba(255,255,255,0.6); font-weight:700; font-size:13px; cursor:pointer; border-top:1px solid rgba(255,255,255,0.1); margin-top:12px; padding-top:16px;}
-  .sidebar-logout:hover{color:#fff;}
-
-  .main-wrap{flex:1; min-width:0;}
-  main{max-width:1040px; margin:0 auto; padding:36px 32px 90px;}
-  .page-title{font-size:24px; margin-bottom:26px;}
-
-  .stat-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:16px; margin-bottom:30px;}
-  .stat-card{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:20px; position:relative; overflow:hidden; box-shadow:0 1px 2px rgba(11,15,12,0.04);}
-  .stat-card .lbl{font-size:11.5px; color:var(--gray-600); font-weight:700; text-transform:uppercase; letter-spacing:0.03em;}
-  .stat-card .val{font-family:'Fraunces',serif; font-weight:620; font-size:26px; margin-top:8px; color:var(--green-900);}
-  .stat-card.alert{border-color:#F3C9C9; background:linear-gradient(180deg,#FEF8F8,#fff);}
-  .stat-card.alert .val{color:#B4232C;}
-
-  .panel{display:none;}
-  .panel.active{display:block;}
-
-  .card{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:20px; margin-bottom:16px; box-shadow:0 1px 2px rgba(11,15,12,0.03);}
-  .card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
-  .card-title{font-weight:800; font-size:15px;}
-  .card-sub{font-size:12.5px; color:var(--gray-600); margin-top:2px;}
-  .row{display:flex; justify-content:space-between; font-size:13.5px; padding:7px 0; border-bottom:1px solid #F1F4F2;}
-  .row:last-of-type{border-bottom:none;}
-  .badge{font-size:11px; font-weight:800; padding:4px 11px; border-radius:100px; letter-spacing:0.01em;}
-  .badge.pending{background:#FFF3E0; color:#B26A00;}
-  .badge.approved{background:var(--mint-100); color:var(--green-900);}
-  .badge.rejected{background:#FDEAEA; color:#B4232C;}
-  .actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
-  .btn{padding:10px 18px; border-radius:100px; font-size:12.5px; font-weight:800; cursor:pointer; border:none; font-family:'Manrope',sans-serif; transition:transform .1s, box-shadow .15s;}
-  .btn:active{transform:scale(0.97);}
-  .btn.approve{background:var(--mint-100); color:var(--green-900);}
-  .btn.reject{background:#FDEAEA; color:#B4232C;}
-  .btn.resolve{background:var(--mint-100); color:var(--green-900);}
-  .btn.primary{background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff; width:100%; padding:14px; font-size:13.5px;}
-  .doc-row{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
-  .doc-thumb{width:96px; height:96px; border-radius:12px; overflow:hidden; border:1.5px solid var(--gray-300); cursor:zoom-in; transition:transform .15s;}
-  .doc-thumb:hover{transform:scale(1.03);}
-  .doc-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
-  .empty{text-align:center; padding:60px 20px; color:var(--gray-600);}
-  .empty h3{color:var(--ink); margin-bottom:8px; font-size:17px;}
-  .tab{padding:10px 16px; font-weight:700; font-size:13.5px; color:var(--gray-600); cursor:pointer; border-bottom:2px solid transparent;}
-  .tab.active{color:var(--green-900); border-bottom-color:var(--green-700);}
-
-  .sub-card{background:var(--mint-50); box-shadow:none; margin-top:12px; margin-bottom:0; border:1px dashed var(--gray-300);}
-
-  .wallet-card{
-    background:linear-gradient(160deg,var(--green-900), #082A1C);
-    border-radius:22px; padding:30px; color:#fff; position:relative; overflow:hidden; margin-bottom:24px;
-    box-shadow:0 30px 60px -28px rgba(11,61,40,0.55);
-  }
-  .wallet-card::after{content:""; position:absolute; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); top:-80px; right:-60px;}
-  .wallet-label{font-size:12.5px; color:rgba(255,255,255,0.6); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; position:relative; z-index:1;}
-  .wallet-balance{font-family:'Fraunces',serif; font-weight:620; font-size:40px; margin-top:8px; position:relative; z-index:1;}
-  .wallet-sub{display:flex; gap:26px; margin-top:18px; position:relative; z-index:1;}
-  .wallet-sub div{font-size:12px; color:rgba(255,255,255,0.65);}
-  .wallet-sub b{display:block; color:#fff; font-size:15px; font-family:'Fraunces',serif; margin-top:2px;}
-
-  .withdraw-form{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:24px; max-width:440px;}
-  .withdraw-form label{font-size:12px; font-weight:700; margin-top:14px; display:block; color:var(--gray-600); text-transform:uppercase; letter-spacing:0.02em;}
-  .withdraw-form input{width:100%; padding:12px 14px; margin-top:6px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif;}
-  .withdraw-form select{
-    width:100%; padding:12px 38px 12px 14px; margin-top:6px; border-radius:10px; border:1.5px solid var(--gray-300);
-    font-size:14px; font-family:'Manrope',sans-serif; background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%235B6B62" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>') no-repeat right 14px center;
-    -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink);
-  }
-  .withdraw-form select:focus{outline:none; border-color:var(--green-600);}
-  .withdraw-msg{margin-top:12px; font-size:13px; font-weight:700;}
-
-  .txn-row{display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--gray-300); border-radius:14px; padding:14px 18px; margin-bottom:10px;}
-  .txn-type{font-weight:700; font-size:13.5px;}
-  .txn-date{font-size:11.5px; color:var(--gray-600); margin-top:2px;}
-  .txn-amount{font-weight:800; color:var(--green-700);}
-
-  .lightbox-overlay{display:none; position:fixed; inset:0; background:rgba(11,15,12,0.92); z-index:200; align-items:center; justify-content:center; padding:24px;}
-  .lightbox-overlay.active{display:flex;}
-  .lightbox-overlay img{max-width:100%; max-height:100%; object-fit:contain; border-radius:12px;}
-  .lightbox-close{position:absolute; top:22px; right:26px; background:none; border:none; color:#fff; font-size:34px; cursor:pointer;}
-
-  @media (max-width:820px){
-    .sidebar{position:fixed; z-index:50; transform:translateX(-100%); transition:transform .2s; width:220px;}
-    .sidebar.open{transform:translateX(0);}
-    main{padding:24px 18px 90px;}
-  }
-</style>
-</head>
-<body>
-
-<div class="app-shell">
-  <div class="sidebar">
-    <div class="sidebar-logo"><span class="sidebar-logo-mark">S</span>SellHub</div>
-    <div class="sidebar-badge">Admin</div>
-
-    <div class="nav-item active" data-tab="overview" onclick="showTab('overview')"><span class="nav-icon">&#9707;</span>Overview</div>
-    <div class="nav-item" data-tab="wallet" onclick="showTab('wallet')"><span class="nav-icon">&#8358;</span>Platform Wallet</div>
-    <div class="nav-item" data-tab="withdrawals" onclick="showTab('withdrawals')"><span class="nav-icon">&#8615;</span>Seller Withdrawals<span class="nav-badge" id="navBadgeWithdrawals" style="display:none;"></span></div>
-    <div class="nav-item" data-tab="verifications" onclick="showTab('verifications')"><span class="nav-icon">&#10003;</span>Verifications<span class="nav-badge" id="navBadgeVerifications" style="display:none;"></span></div>
-    <div class="nav-item" data-tab="disputes" onclick="showTab('disputes')"><span class="nav-icon">!</span>Disputes<span class="nav-badge" id="navBadgeDisputes" style="display:none;"></span></div>
-
-    <div class="sidebar-spacer"></div>
-    <div class="sidebar-logout" onclick="logout()">&#9099; Log Out</div>
-  </div>
-
-  <div class="main-wrap">
-    <main>
-      <div class="panel active" id="panel-overview">
-        <h1 class="page-title">Overview</h1>
-        <div class="stat-row" id="statRow"></div>
-      </div>
-
-      <div class="panel" id="panel-wallet">
-        <h1 class="page-title">Platform Wallet</h1>
-        <div class="wallet-card">
-          <div class="wallet-label">Available Platform Balance</div>
-          <div class="wallet-balance" id="adminWalletBalance">₦0</div>
-          <div class="wallet-sub">
-            <div>Total revenue earned<b id="adminTotalRevenue">₦0</b></div>
-            <div>Total withdrawn<b id="adminTotalWithdrawn">₦0</b></div>
-          </div>
-        </div>
-
-        <div class="withdraw-form">
-          <h3 style="font-size:16px; margin-bottom:4px;">Withdraw to your bank</h3>
-          <p style="font-size:12.5px; color:var(--gray-600); margin:4px 0 0;">This sends the money straight to your bank via Paystack — make sure your Paystack balance can cover it.</p>
-          <label>Amount</label>
-          <input id="aw_amount" type="number" placeholder="e.g. 50000">
-          <label>Bank name</label>
-          <div id="aw_bankWrap"></div>
-          <label>Account number</label>
-          <input id="aw_accountNumber" placeholder="10-digit account number" inputmode="numeric" maxlength="10">
-          <label>Account name</label>
-          <input id="aw_accountName" placeholder="Verified automatically from your bank" readonly>
-          <div id="aw_verifyMsg" style="font-size:12px; font-weight:700; margin-top:6px; min-height:16px;"></div>
-          <label>Withdrawal PIN</label>
-          <input id="aw_pin" type="password" placeholder="Enter your withdrawal PIN" inputmode="numeric" maxlength="6">
-          <button class="btn primary" style="margin-top:20px;" onclick="submitAdminWithdraw()">Withdraw</button>
-          <div class="withdraw-msg" id="aw_msg"></div>
-        </div>
-
-        <h3 style="font-size:15px; margin:28px 0 14px;">Withdrawal history</h3>
-        <div id="adminTxnList"></div>
-      </div>
-
-      <div class="panel" id="panel-withdrawals">
-        <h1 class="page-title">Seller Withdrawals</h1>
-        <div id="withdrawalsList"></div>
-      </div>
-
-      <div class="panel" id="panel-verifications">
-        <h1 class="page-title">Verifications</h1>
-        <div class="tabs" style="border-bottom:1px solid var(--gray-300); margin-bottom:20px;">
-          <div class="tab active" data-vtab="pending" onclick="showVerificationTab('pending')" style="padding:10px 16px; font-weight:700; font-size:13.5px; color:var(--gray-600); cursor:pointer; border-bottom:2px solid transparent;">Pending Review</div>
-          <div class="tab" data-vtab="decided" onclick="showVerificationTab('decided')" style="padding:10px 16px; font-weight:700; font-size:13.5px; color:var(--gray-600); cursor:pointer; border-bottom:2px solid transparent;">Approved / Rejected Records</div>
-        </div>
-        <div id="verificationsList"></div>
-        <div id="decidedVerificationsList" style="display:none;"></div>
-      </div>
-
-      <div class="panel" id="panel-disputes">
-        <h1 class="page-title">Disputes</h1>
-        <div id="disputesList"></div>
-      </div>
-    </main>
-  </div>
-</div>
-
-<div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-  <img id="lightboxImg" src="">
-</div>
-
-<script>
-  // Bank list comes live from Paystack (name + the code Paystack needs to
-  // actually send money), not a hand-typed list.
-  let bankListPromise = null;
-  function loadBankList() {
-    if (!bankListPromise) {
-      bankListPromise = authedFetch('/api/banks').then(r => r.json()).then(r => r.ok ? r.banks : []);
+// ---------- DATA STORAGE ----------
+// Render's free tier has no permanent disk: every time the service redeploys,
+// restarts, OR just goes idle and spins back down, anything written to the
+// local filesystem is wiped. Setting DATA_DIR to a path on a Render
+// *persistent disk* (Render dashboard → service → Disks) makes every wallet
+// balance, order and withdrawal survive all of that. Without DATA_DIR set,
+// behavior is unchanged — files live next to server.js, same as before.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DATA_FILES = [
+  'admin-withdrawals.json', 'customers.json', 'disputes.json', 'notifications.json',
+  'orders.json', 'payments.json', 'products.json', 'reviews.json',
+  'seller-notifications.json', 'sellers.json', 'settings.json', 'withdrawals.json'
+];
+// The very first time a persistent disk is attached, it's empty. Seed it
+// once from whatever's already sitting next to server.js (your current
+// sellers/products/settings) so the site doesn't start from zero — after
+// that, the disk's own copies are always used and never overwritten here.
+if (DATA_DIR !== __dirname) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const file of DATA_FILES) {
+    const dest = path.join(DATA_DIR, file);
+    const src = path.join(__dirname, file);
+    if (!fs.existsSync(dest) && fs.existsSync(src)) {
+      fs.copyFileSync(src, dest);
+      console.log('Seeded', file, 'onto the persistent disk.');
     }
-    return bankListPromise;
   }
-  async function renderBankSelect(selectId) {
-    const banks = await loadBankList();
-    return `<select id="${selectId}">
-      <option value="">Select your bank…</option>
-      ${banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('')}
-    </select>`;
+  console.log('💾 Using persistent storage at', DATA_DIR);
+} else {
+  console.warn('⚠️  No DATA_DIR set — data lives on the temporary server disk and WILL be lost on every restart/redeploy/idle spin-down. Set DATA_DIR to a Render persistent disk path to fix this.');
+}
+
+const PORT = 3000;
+const pendingSignups = {};
+const pendingSellerSignups = {};
+const resetCodes = {};
+
+// ---------- ADMIN WHATSAPP ALERTS ----------
+// Your own WhatsApp number, so you (the admin) get pinged the moment
+// something needs your attention: a new verification submission, a
+// withdrawal request, or a customer dispute. Set this in .env.
+const ADMIN_WHATSAPP_PHONE = process.env.ADMIN_WHATSAPP_PHONE || '';
+
+if (!ADMIN_WHATSAPP_PHONE) {
+  console.warn('⚠️  ADMIN_WHATSAPP_PHONE is not set — admin WhatsApp alerts (verifications, withdrawals, disputes) are switched off.');
+}
+
+// Fire-and-forget: never throws, never blocks the request that triggered it.
+function notifyAdmin(message) {
+  if (!ADMIN_WHATSAPP_PHONE) return;
+  sendWhatsApp(ADMIN_WHATSAPP_PHONE, message).catch(err => console.log('WhatsApp error (admin alert):', err.message));
+}
+
+// ---------- PAYSTACK (real money) ----------
+// The secret key lives ONLY in .env on the server. It must never be put in
+// any .html file or sent to the browser — anyone holding it can move your money.
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || '';
+const APP_BASE_URL = (process.env.APP_BASE_URL || ('http://localhost:' + PORT)).replace(/\/+$/, '');
+const MIN_DEPOSIT_NAIRA = 100;
+const MAX_DEPOSIT_NAIRA = 1000000;
+
+// Paystack's Nigerian fee for local payments: 1.5% + ₦100, where the ₦100 is
+// waived when the payment is under ₦2,500, and the whole fee is capped at ₦2,000.
+// (Source: Paystack's "Transactions pricing" help page.) When a customer adds
+// ₦X to their wallet we charge them a little more than ₦X, so that after
+// Paystack takes its fee, you still receive the full ₦X. This is completely
+// separate from SellHub's own fees (the checkout % and withdrawal %).
+const PAYSTACK_RATE = 0.015;
+const PAYSTACK_FLAT_KOBO = 10000;      // ₦100
+const PAYSTACK_WAIVER_KOBO = 250000;   // ₦2,500
+const PAYSTACK_CAP_KOBO = 200000;      // ₦2,000
+
+// Returns the total (in whole naira) to charge so that `priceNaira` reaches you
+// after Paystack's fee, using Paystack's published "pass the fee" formulas.
+function paystackTotalNaira(priceNaira) {
+  const price = priceNaira * 100; // kobo
+  // Small payments: the ₦100 is waived while the total stays under ₦2,500.
+  const withoutFlat = Math.ceil(price / (1 - PAYSTACK_RATE)) + 1;
+  let total;
+  if (withoutFlat < PAYSTACK_WAIVER_KOBO) {
+    total = withoutFlat;
+  } else if ((PAYSTACK_RATE * price) + PAYSTACK_FLAT_KOBO > PAYSTACK_CAP_KOBO) {
+    total = price + PAYSTACK_CAP_KOBO;                       // fee hits the ₦2,000 cap
+  } else {
+    total = Math.ceil((price + PAYSTACK_FLAT_KOBO) / (1 - PAYSTACK_RATE)) + 1;
   }
-  async function initBankSelect(wrapId, selectId, onChange) {
-    document.getElementById(wrapId).innerHTML = await renderBankSelect(selectId);
-    if (onChange) document.getElementById(selectId).addEventListener('change', onChange);
+  return Math.ceil(total / 100); // round up to a whole naira so the customer sees a clean number
+}
+
+// Works out what a deposit costs. The setting can be switched off in
+// settings.json ("passPaystackFeeToCustomer": false) if you ever prefer to
+// absorb Paystack's fee yourself.
+function depositQuote(amount) {
+  let settings = {};
+  try { settings = getSettings(); } catch (e) {}
+  const total = settings.passPaystackFeeToCustomer === false ? amount : paystackTotalNaira(amount);
+  return { amount, fee: total - amount, total };
+}
+
+if (!PAYSTACK_SECRET_KEY) {
+  console.warn('⚠️  PAYSTACK_SECRET_KEY is not set in .env — wallet deposits are switched off until you add it.');
+} else if (PAYSTACK_SECRET_KEY.startsWith('sk_live_')) {
+  console.warn('💰 Paystack is in LIVE mode — deposits use REAL money.');
+} else {
+  console.log('🧪 Paystack is in TEST mode — no real money moves.');
+}
+
+// Calls Paystack from the server (never from the browser).
+async function paystackRequest(method, path, body) {
+  const res = await fetch('https://api.paystack.co' + path, {
+    method,
+    headers: {
+      'Authorization': 'Bearer ' + PAYSTACK_SECRET_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.status) {
+    throw new Error(json.message || ('Paystack error ' + res.status));
   }
-  function bankName(selectId) {
-    const sel = document.getElementById(selectId);
-    const opt = sel.options[sel.selectedIndex];
-    return opt ? opt.textContent : '';
+  return json.data;
+}
+
+// ---------- PAYSTACK TRANSFERS (automatic payouts to sellers/admin) ----------
+// Paystack's list of Nigerian banks rarely changes, so it's cached in memory
+// for an hour instead of calling the API on every page load.
+let bankListCache = null;
+let bankListCacheAt = 0;
+async function getBankList() {
+  const ONE_HOUR = 60 * 60 * 1000;
+  if (bankListCache && (Date.now() - bankListCacheAt) < ONE_HOUR) return bankListCache;
+  const data = await paystackRequest('GET', '/bank?currency=NGN');
+  bankListCache = data.map(b => ({ name: b.name, code: b.code }));
+  bankListCacheAt = Date.now();
+  return bankListCache;
+}
+
+// Confirms an account number actually belongs to the name on file at that
+// bank, before any money is sent to it — catches typos and wrong accounts.
+async function resolveBankAccount(accountNumber, bankCode) {
+  const data = await paystackRequest('GET', `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+  return data.account_name;
+}
+
+// A "transfer recipient" is Paystack's record of who to pay; it has to be
+// created once before a transfer can be sent to that account.
+async function createTransferRecipient(name, accountNumber, bankCode) {
+  const data = await paystackRequest('POST', '/transferrecipient', {
+    type: 'nuban', name, account_number: accountNumber, bank_code: bankCode, currency: 'NGN'
+  });
+  return data.recipient_code;
+}
+
+// Sends real money out of the SellHub Paystack balance to a recipient.
+// `reference` is our own id (e.g. "seller-wd-123") so the webhook can later
+// match the result back to the right withdrawal record.
+async function initiateTransfer(amount, recipientCode, reason, reference) {
+  return paystackRequest('POST', '/transfer', {
+    source: 'balance', amount: Math.round(amount * 100), recipient: recipientCode, reason, reference
+  });
+}
+
+// payments.json is created automatically the first time it's needed.
+function readPayments() {
+  try { return readJSON('payments.json'); } catch (e) { return []; }
+}
+
+// Credits a customer's wallet for a Paystack payment — but ONLY if Paystack
+// itself confirmed it, the amount matches what we asked for, and we haven't
+// already credited it. Everything here is synchronous (no `await`), so even if
+// the browser callback and Paystack's webhook arrive at the same instant, only
+// one of them can get past the "already credited" check.
+function creditPaystackPayment(reference, tx) {
+  const payments = readPayments();
+  const payment = payments.find(p => p.reference === reference);
+  if (!payment) return { ok: false, reason: 'unknown_reference' };
+  if (payment.status === 'success') return { ok: true, alreadyCredited: true };
+  // A payment flagged for a wrong amount stays frozen until YOU review it in
+  // payments.json — it must never be credited automatically later.
+  if (payment.status === 'amount_mismatch') return { ok: false, reason: 'flagged_for_review' };
+
+  if (!tx || tx.status !== 'success') return { ok: false, reason: 'not_successful' };
+  if (tx.reference !== reference) return { ok: false, reason: 'reference_mismatch' };
+  if (tx.currency !== 'NGN') return { ok: false, reason: 'wrong_currency' };
+  // What the customer should have paid = the deposit + Paystack's fee.
+  // (Older records made before fees were passed on have no `total`.)
+  const expectedKobo = Math.round((payment.total || payment.amount) * 100);
+  if (Number(tx.amount) !== expectedKobo) {
+    // Paid amount differs from what we asked for — never credit; flag for review.
+    payment.status = 'amount_mismatch';
+    payment.paidKobo = tx.amount;
+    writeJSON('payments.json', payments);
+    console.error('Paystack amount mismatch for', reference, 'expected', expectedKobo, 'got', tx.amount);
+    return { ok: false, reason: 'amount_mismatch' };
   }
 
-  // Resolves the account number against the bank and fills in the real name
-  // on file — prevents paying out to a mistyped or wrong account.
-  async function verifyAccount(bankSelectId, acctNumberId, acctNameId, statusId) {
-    const bankCode = document.getElementById(bankSelectId).value;
-    const accountNumber = document.getElementById(acctNumberId).value.trim();
-    const nameField = document.getElementById(acctNameId);
-    const status = document.getElementById(statusId);
-    nameField.value = '';
-    nameField.dataset.verified = '';
-    if (!bankCode || accountNumber.length !== 10) { status.textContent = ''; return; }
-    status.textContent = 'Checking account…';
-    status.style.color = 'var(--gray-600)';
-    try {
-      const res = await authedFetch('/api/resolve-account', { method: 'POST', body: JSON.stringify({ bankCode, accountNumber }) });
-      const r = await res.json();
-      if (r.ok) {
-        nameField.value = r.accountName;
-        nameField.dataset.verified = '1';
-        status.textContent = '✓ Verified: ' + r.accountName;
-        status.style.color = 'var(--green-700)';
-      } else {
-        status.textContent = r.message || 'Could not verify this account.';
-        status.style.color = '#B4232C';
+  const customers = readJSON('customers.json');
+  const customer = customers.find(c => c.email === payment.email);
+  if (!customer) return { ok: false, reason: 'no_customer' };
+
+  // Mark the payment as done FIRST. If anything crashes after this line, the
+  // worst case is a customer who needs a manual top-up (visible in
+  // payments.json) — never a double credit, which would cost you money.
+  payment.status = 'success';
+  payment.creditedAt = new Date().toISOString();
+  if (typeof tx.fees === 'number') payment.paystackFeeKobo = tx.fees; // Paystack's real fee, for your records
+  writeJSON('payments.json', payments);
+
+  customer.walletBalance = (customer.walletBalance || 0) + payment.amount;
+  customer.transactions = customer.transactions || [];
+  customer.transactions.unshift({ type: 'deposit', amount: payment.amount, reference, date: payment.creditedAt });
+  writeJSON('customers.json', customers);
+
+  return { ok: true, alreadyCredited: false };
+}
+
+// Confirms (or rolls back) a Paystack transfer once it finishes. `reference`
+// is the one we set ourselves in initiateTransfer: "seller-wd-<id>" or
+// "admin-wd-<id>" — that's how we know which record this result belongs to.
+// Guarded against Paystack sending the same webhook more than once: a
+// withdrawal only gets acted on while it's still "Processing".
+function handleTransferWebhook(eventType, reference, failReason) {
+  const succeeded = eventType === 'transfer.success';
+
+  if (reference.startsWith('seller-wd-')) {
+    const id = Number(reference.slice('seller-wd-'.length));
+    const withdrawals = readJSON('withdrawals.json');
+    const withdrawal = withdrawals.find(w => w.id === id);
+    if (!withdrawal || withdrawal.status !== 'Processing') return;
+
+    withdrawal.status = succeeded ? 'Approved' : 'Rejected';
+    if (!succeeded) withdrawal.failReason = failReason || eventType;
+    writeJSON('withdrawals.json', withdrawals);
+
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+    if (seller) {
+      const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Processing' && t.amount === withdrawal.amount);
+      if (txn) txn.status = withdrawal.status;
+      if (!succeeded) {
+        // The payout never arrived — give the seller their money back.
+        seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;
       }
-    } catch (e) {
-      status.textContent = 'Could not verify this account — check your connection.';
-      status.style.color = '#B4232C';
+      writeJSON('sellers.json', sellers);
+
+      const phone = seller.whatsappNumber || seller.businessPhone || seller.phone;
+      if (succeeded) {
+        sendWhatsApp(phone, `✅ Your withdrawal of ₦${withdrawal.netAmount.toLocaleString()} has been paid to your ${withdrawal.bank} account ending ${String(withdrawal.accountNumber).slice(-4)}.`);
+      } else {
+        sendWhatsApp(phone, `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} could not be paid out, so it's been refunded to your SellHub wallet. Please check your bank details and try again.`);
+      }
     }
+    notifyAdmin(succeeded
+      ? `SellHub: Payout of ₦${withdrawal.netAmount.toLocaleString()} to ${withdrawal.storeName || withdrawal.sellerEmail} succeeded ✅`
+      : `SellHub: Payout to ${withdrawal.storeName || withdrawal.sellerEmail} FAILED ❌ (₦${withdrawal.amount.toLocaleString()}, refunded to their wallet). Reason: ${failReason || eventType}`);
+
+  } else if (reference.startsWith('admin-wd-')) {
+    const id = Number(reference.slice('admin-wd-'.length));
+    const adminWithdrawals = readJSON('admin-withdrawals.json');
+    const withdrawal = adminWithdrawals.find(w => w.id === id);
+    if (!withdrawal || withdrawal.status !== 'Processing') return;
+
+    withdrawal.status = succeeded ? 'Approved' : 'Failed';
+    if (!succeeded) withdrawal.failReason = failReason || eventType;
+    writeJSON('admin-withdrawals.json', adminWithdrawals);
+
+    notifyAdmin(succeeded
+      ? `SellHub: Your withdrawal of ₦${withdrawal.amount.toLocaleString()} to your bank succeeded ✅`
+      : `SellHub: Your withdrawal of ₦${withdrawal.amount.toLocaleString()} FAILED ❌ — no money left the account. Reason: ${failReason || eventType}`);
   }
-  window.addEventListener('DOMContentLoaded', () => {
-    initBankSelect('aw_bankWrap', 'aw_bank', () => verifyAccount('aw_bank', 'aw_accountNumber', 'aw_accountName', 'aw_verifyMsg'));
-    document.getElementById('aw_accountNumber').addEventListener('blur', () => verifyAccount('aw_bank', 'aw_accountNumber', 'aw_accountName', 'aw_verifyMsg'));
+}
+
+// Reads the request body exactly as sent (needed to check Paystack's signature).
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > 1000000) { req.destroy(); reject(new Error('Body too large')); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+// ---------- SESSIONS ----------
+// In-memory session store: token -> { email, accountType, expiresAt }.
+// Resets when the server restarts — fine for an MVP, but note that a real
+// deployment should move this to a persistent store (e.g. Redis) so sessions
+// survive restarts and work across multiple server instances.
+const sessions = {};
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function createSession(email, accountType) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions[token] = { email, accountType, expiresAt: Date.now() + SESSION_TTL_MS };
+  return token;
+}
+
+function getSession(req) {
+  const header = req.headers['authorization'] || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return null;
+  const session = sessions[token];
+  if (!session) return null;
+  if (session.expiresAt < Date.now()) { delete sessions[token]; return null; }
+  return session;
+}
+
+// Call this at the top of any protected route. Sends a 401 and returns null
+// if there's no valid session (optionally requiring a specific account type).
+function requireAuth(req, res, accountType) {
+  const session = getSession(req);
+  if (!session || (accountType && session.accountType !== accountType)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, message: 'Please log in again.' }));
+    return null;
+  }
+  return session;
+}
+
+// ---------- FEES ----------
+// Kept in a plain JSON file so an admin dashboard can edit these later
+// without touching code. Server-side only — never trust a fee percentage
+// sent from the client.
+function getSettings() {
+  return readJSON('settings.json');
+}
+
+// Platform revenue has two sources: the customer service fee taken on every
+// order, and the seller withdrawal fee — but the withdrawal fee only counts
+// once a withdrawal is actually Approved (a Rejected one refunds the seller
+// their full amount, fee included, so nothing was really earned from it).
+function getPlatformRevenue() {
+  const orders = readJSON('orders.json');
+  const withdrawals = readJSON('withdrawals.json');
+
+  const customerFeeRevenue = orders.reduce((sum, o) => sum + (o.serviceFee || 0), 0);
+  const withdrawalFeeRevenue = withdrawals
+    .filter(w => w.status === 'Approved')
+    .reduce((sum, w) => sum + (w.fee || 0), 0);
+
+  return customerFeeRevenue + withdrawalFeeRevenue;
+}
+
+// Creates an in-app notification for a customer. This is the single place
+// that writes to notifications.json, so every notification — regardless of
+// what triggered it — has the same shape.
+function createNotification(customerEmail, orderId, type, title, message) {
+  const notifications = readJSON('notifications.json');
+  const notification = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    customerEmail, orderId, type, title, message,
+    date: new Date().toISOString(),
+    read: false
+  };
+  notifications.unshift(notification);
+  writeJSON('notifications.json', notifications);
+  return notification;
+}
+
+// Same idea as createNotification above, but for sellers — used for things
+// like a customer's delivery reminder, so the seller sees it in-app and
+// isn't relying on email alone.
+function createSellerNotification(sellerEmail, orderId, type, title, message) {
+  const notifications = readJSON('seller-notifications.json');
+  const notification = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    sellerEmail, orderId, type, title, message,
+    date: new Date().toISOString(),
+    read: false
+  };
+  notifications.unshift(notification);
+  writeJSON('seller-notifications.json', notifications);
+  return notification;
+}
+
+// One copy source for both the in-app notification and the email that goes
+// out for each order status, so the two can never drift out of sync.
+const ORDER_STATUS_COPY = {
+  'Order Received': {
+    subject: 'Your Order Has Been Placed',
+    heading: 'Order Confirmed',
+    line: (order) => `Your order #${order.id} has been received and is being prepared.`
+  },
+  'Processing': {
+    subject: 'Your Order Is Being Processed',
+    heading: 'Order Processing',
+    line: (order) => `Your order #${order.id} is now being processed by the seller.`
+  },
+  'Shipped': {
+    subject: 'Your Order Has Been Shipped',
+    heading: 'Order Shipped',
+    line: (order) => `Your order #${order.id} has been shipped and is now on its way.`
+  },
+  'Out for Delivery': {
+    subject: 'Your Order Is Out for Delivery',
+    heading: 'Out for Delivery',
+    line: (order) => `Your order #${order.id} is out for delivery.`
+  },
+  'Delivered': {
+    subject: 'Your Order Has Been Delivered',
+    heading: 'Order Delivered',
+    line: (order) => `Your order #${order.id} has been delivered successfully.`
+  },
+  'Cancelled': {
+    subject: 'Your Order Has Been Cancelled',
+    heading: 'Order Cancelled',
+    line: (order) => `Your order #${order.id} has been cancelled.`
+  }
+};
+
+// Fires both the in-app notification and the email for a status change.
+// Called from exactly one place per status transition, so seller dashboard,
+// customer dashboard, notifications and email all reflect the same event.
+function notifyOrderStatus(order, status) {
+  const copy = ORDER_STATUS_COPY[status];
+  if (!copy) return;
+
+  createNotification(order.customerEmail, order.id, status, copy.heading, copy.line(order));
+
+  const itemsList = order.items.map(i => i.name).join(', ');
+  const toEmail = order.deliveryEmail || order.customerEmail;
+  const html = `
+    <p>Hello ${order.fullName || ''},</p>
+    <p>${copy.line(order)}</p>
+    <p><b>Order:</b> ${itemsList}<br><b>Total:</b> ₦${order.total.toLocaleString()}</p>
+    <p>You can log in to your account to track your order.</p>
+    <p>Thank you for shopping with SellHub.</p>
+  `;
+  sendEmail(toEmail, copy.subject, html).catch(err => console.log('Email error:', err.message));
+
+  if (order.phone) {
+    sendWhatsApp(order.phone, `SellHub: ${copy.line(order)}\nItems: ${itemsList}\nTotal: ₦${order.total.toLocaleString()}`)
+      .catch(err => console.log('WhatsApp error:', err.message));
+  }
+}
+
+// Pays every seller in the order their share immediately at purchase time
+// (rather than waiting for delivery). Groups by seller since one order can
+// contain products from more than one store.
+function creditSellersForOrder(order) {
+  const sellers = readJSON('sellers.json');
+  const shareBySeller = {};
+  order.items.forEach(item => {
+    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + (item.effectivePrice || item.price);
   });
 
-  const authToken = localStorage.getItem('sellhub_admin_token');
-  if (!authToken) window.location.href = '/admin-login';
-  const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+  Object.entries(shareBySeller).forEach(([sellerEmail, amount]) => {
+    const seller = sellers.find(s => s.email === sellerEmail);
+    if (!seller || amount <= 0) return;
+    seller.walletBalance = (seller.walletBalance || 0) + amount;
+    seller.transactions = seller.transactions || [];
+    seller.transactions.unshift({
+      type: 'sale', amount, orderId: order.id, date: new Date().toISOString()
+    });
+  });
+  writeJSON('sellers.json', sellers);
+}
 
-  async function authedFetch(url, options = {}) {
-    const res = await fetch(url, { ...options, headers: { ...authHeaders, ...(options.headers || {}) } });
-    if (res.status === 401) { localStorage.removeItem('sellhub_admin_token'); window.location.href = '/admin-login'; throw new Error('Session expired'); }
-    return res;
-  }
+// Tells each seller in the order — by WhatsApp and in-app notification — the
+// moment a paid order comes in, so they don't have to keep checking the
+// dashboard to notice new business.
+function notifySellerNewOrder(order) {
+  const sellers = readJSON('sellers.json');
+  const itemsBySeller = {};
+  order.items.forEach(item => {
+    if (!itemsBySeller[item.sellerEmail]) itemsBySeller[item.sellerEmail] = [];
+    itemsBySeller[item.sellerEmail].push(item);
+  });
 
-  function money(n){ return '₦' + Number(n).toLocaleString(); }
-  function openLightbox(src){
-    document.getElementById('lightboxImg').src = src;
-    document.getElementById('lightboxOverlay').classList.add('active');
-  }
-  function closeLightbox(){ document.getElementById('lightboxOverlay').classList.remove('active'); }
+  Object.entries(itemsBySeller).forEach(([sellerEmail, items]) => {
+    const seller = sellers.find(s => s.email === sellerEmail);
+    if (!seller) return;
+    const payout = items.reduce((sum, i) => sum + (i.effectivePrice || i.price), 0);
+    const itemsList = items.map(i => i.name).join(', ');
 
-  function showTab(name){
-    document.querySelectorAll('.nav-item').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
-  }
+    createSellerNotification(
+      sellerEmail, order.id, 'New Order',
+      'New order received!',
+      `New order #${order.id} from ${order.fullName || 'a customer'}: ${itemsList}. Your payout: ₦${payout.toLocaleString()}.`
+    );
 
-  async function loadStats(){
-    const res = await authedFetch('/api/admin/stats');
-    const r = await res.json();
-    if (!r.ok) return;
-    document.getElementById('statRow').innerHTML = `
-      <div class="stat-card"><div class="lbl">Total Sellers</div><div class="val">${r.totalSellers}</div></div>
-      <div class="stat-card"><div class="lbl">Total Customers</div><div class="val">${r.totalCustomers}</div></div>
-      <div class="stat-card"><div class="lbl">Total Orders</div><div class="val">${r.totalOrders}</div></div>
-      <div class="stat-card"><div class="lbl">Platform Revenue</div><div class="val">${money(r.totalRevenue)}</div></div>
-      <div class="stat-card ${r.pendingWithdrawals > 0 ? 'alert' : ''}"><div class="lbl">Pending Withdrawals</div><div class="val">${r.pendingWithdrawals}</div></div>
-      <div class="stat-card ${r.pendingVerifications > 0 ? 'alert' : ''}"><div class="lbl">Pending Verifications</div><div class="val">${r.pendingVerifications}</div></div>
-      <div class="stat-card ${r.openDisputes > 0 ? 'alert' : ''}"><div class="lbl">Open Disputes</div><div class="val">${r.openDisputes}</div></div>
-    `;
-    setNavBadge('navBadgeWithdrawals', r.pendingWithdrawals);
-    setNavBadge('navBadgeVerifications', r.pendingVerifications);
-    setNavBadge('navBadgeDisputes', r.openDisputes);
-  }
-
-  function setNavBadge(id, count){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.style.display = count > 0 ? 'inline-block' : 'none';
-    el.textContent = count;
-  }
-
-  async function loadAdminWallet(){
-    const res = await authedFetch('/api/admin/wallet');
-    const r = await res.json();
-    if (!r.ok) return;
-    document.getElementById('adminWalletBalance').textContent = money(r.balance);
-    document.getElementById('adminTotalRevenue').textContent = money(r.totalRevenue);
-    document.getElementById('adminTotalWithdrawn').textContent = money(r.totalWithdrawn);
-
-    const list = document.getElementById('adminTxnList');
-    if (r.transactions.length === 0) {
-      list.innerHTML = `<div class="empty"><h3>No withdrawals yet</h3></div>`;
-      return;
+    const sellerPhone = seller.whatsappNumber || seller.businessPhone;
+    if (sellerPhone) {
+      sendWhatsApp(
+        sellerPhone,
+        `SellHub: New order #${order.id} from ${order.fullName || 'a customer'}!\nItems: ${itemsList}\nYour payout: ₦${payout.toLocaleString()}`
+      ).catch(err => console.log('WhatsApp error:', err.message));
     }
-    list.innerHTML = r.transactions.map(t => `
-      <div class="txn-row">
-        <div>
-          <div class="txn-type">Withdrawal to ${t.bank} · ${t.accountNumber} ${t.status && t.status !== 'Approved' ? `<span style="color:${t.status === 'Failed' ? '#B4232C' : 'var(--gray-600)'}; font-weight:700;">(${t.status})</span>` : ''}</div>
-          <div class="txn-date">${new Date(t.date).toLocaleString()}</div>
-        </div>
-        <div class="txn-amount">− ${money(t.amount)}</div>
-      </div>
-    `).join('');
+  });
+}
+
+// If an order is cancelled after sellers were already paid, this reverses
+// their share and refunds the customer, so money doesn't end up stuck with
+// a seller for an order that never completed.
+function reverseSellerCreditsAndRefundCustomer(order) {
+  const sellers = readJSON('sellers.json');
+  const shareBySeller = {};
+  order.items.forEach(item => {
+    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + (item.effectivePrice || item.price);
+  });
+
+  Object.entries(shareBySeller).forEach(([sellerEmail, amount]) => {
+    const seller = sellers.find(s => s.email === sellerEmail);
+    if (!seller || amount <= 0) return;
+    seller.walletBalance = (seller.walletBalance || 0) - amount;
+    seller.transactions = seller.transactions || [];
+    seller.transactions.unshift({
+      type: 'sale-reversed', amount: -amount, orderId: order.id, date: new Date().toISOString()
+    });
+  });
+  writeJSON('sellers.json', sellers);
+
+  const customers = readJSON('customers.json');
+  const customer = customers.find(c => c.email === order.customerEmail);
+  if (customer) {
+    customer.walletBalance = (customer.walletBalance || 0) + order.total;
+    customer.transactions = customer.transactions || [];
+    customer.transactions.unshift({
+      type: 'refund', amount: order.total, orderId: order.id, date: new Date().toISOString()
+    });
+    writeJSON('customers.json', customers);
+  }
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try { resolve(body ? JSON.parse(body) : {}); }
+      catch (err) { reject(err); }
+    });
+  });
+}
+function readJSON(file) { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')); }
+function writeJSON(file, data) { fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2)); }
+function serveFile(res, fileName) {
+  fs.readFile(fileName, (err, content) => {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(content);
+  });
+}
+function sendJSON(res, data, status) {
+  res.writeHead(status || 200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+const pages = {
+  '/': 'sellhub-landing.html',
+  '/signup': 'signup.html',
+  '/seller-signup': 'seller-signup.html',
+  '/login': 'login.html',
+  '/forgot-password': 'forgot-password.html',
+  '/dashboard': 'dashboard.html',
+  '/seller-dashboard': 'seller-dashboard.html',
+  '/seller-onboarding': 'seller-onboarding.html',
+  '/verification-center': 'verification-center.html',
+  '/admin-login': 'admin-login.html',
+  '/admin-dashboard': 'admin-dashboard.html',
+};
+
+const server = http.createServer((req, res) => {
+
+  // Ignore any ?query=string when matching a page, so returning from
+  // Paystack to /dashboard?deposit=success still loads the dashboard.
+  const pagePath = req.url.split('?')[0];
+  if (req.method === 'GET' && pages[pagePath]) { serveFile(res, pages[pagePath]); return; }
+
+  // Every storefront shares one page (storefront.html); the page itself
+  // reads the slug from the URL and fetches that seller's data.
+  if (req.method === 'GET' && req.url.startsWith('/store/')) { serveFile(res, 'storefront.html'); return; }
+
+  // ---------- PUBLIC STOREFRONT ----------
+  if (req.method === 'GET' && req.url.startsWith('/api/store-info')) {
+    const slug = new URLSearchParams(req.url.split('?')[1] || '').get('slug');
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.storeSlug === slug);
+    if (!seller || seller.suspended) return sendJSON(res, { ok: false, message: 'Store not found.' });
+
+    const products = readJSON('products.json').filter(p => p.sellerEmail === seller.email);
+    const reviews = readJSON('reviews.json');
+    const withRatings = products.map(p => {
+      const productReviews = reviews.filter(r => r.productId === p.id);
+      const avg = productReviews.length
+        ? productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length
+        : null;
+      return { ...p, avgRating: avg, reviewCount: productReviews.length };
+    });
+
+    const sellerVerified = !!(seller.verification && seller.verification.identityStatus === 'Verified');
+    sendJSON(res, {
+      ok: true,
+      store: {
+        businessName: seller.businessName,
+        storeSlug: seller.storeSlug,
+        category: seller.category,
+        state: seller.state,
+        city: seller.city,
+        logoImage: seller.logoImage || null,
+        coverImage: seller.coverImage || null,
+        sellerVerified
+      },
+      products: withRatings
+    });
+    return;
   }
 
-  async function submitAdminWithdraw(){
-    const msg = document.getElementById('aw_msg');
-    const nameField = document.getElementById('aw_accountName');
-    if (!document.getElementById('aw_bank').value || !nameField.dataset.verified) {
-      msg.textContent = 'Select your bank and enter your account number so we can verify it first.';
-      msg.style.color = '#B4232C';
-      return;
-    }
-    const body = {
-      amount: document.getElementById('aw_amount').value,
-      bank: bankName('aw_bank'),
-      bankCode: document.getElementById('aw_bank').value,
-      accountNumber: document.getElementById('aw_accountNumber').value,
-      accountName: nameField.value,
-      pin: document.getElementById('aw_pin').value
-    };
-    const res = await authedFetch('/api/admin/withdraw', { method: 'POST', body: JSON.stringify(body) });
-    const r = await res.json();
-    msg.textContent = r.message;
-    msg.style.color = r.ok ? 'var(--green-700)' : '#B4232C';
-    document.getElementById('aw_pin').value = '';
-    if (r.ok) {
-      document.getElementById('aw_amount').value = '';
-      document.getElementById('aw_bank').value = '';
-      document.getElementById('aw_accountNumber').value = '';
-      nameField.value = '';
-      nameField.dataset.verified = '';
-      document.getElementById('aw_verifyMsg').textContent = '';
-      if (r.withdrawal && r.withdrawal.needsOtp) {
-        promptOtp(r.withdrawal.transferCode);
+  // ---------- SELLER: STORE PROFILE (logo + cover photo) ----------
+  if (req.method === 'POST' && req.url === '/api/seller/store-profile') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ logoImage, coverImage }) => {
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      if (logoImage) seller.logoImage = logoImage;
+      if (coverImage) seller.coverImage = coverImage;
+
+      writeJSON('sellers.json', sellers);
+      sendJSON(res, { ok: true, message: 'Store profile updated!' });
+    });
+    return;
+  }
+
+  // ================= ADMIN DASHBOARD =================
+
+  if (req.method === 'POST' && req.url === '/api/admin/login') {
+    readBody(req).then(({ password }) => {
+      const { adminPassword } = getSettings();
+      if (password !== adminPassword) {
+        return sendJSON(res, { ok: false, message: 'Incorrect password.' });
       }
-      loadAdminWallet();
-    }
+      const token = createSession('admin', 'admin');
+      sendJSON(res, { ok: true, token });
+    });
+    return;
   }
 
-  async function promptOtp(transferCode){
-    const otp = prompt('Paystack sent you an OTP (by SMS/email) to confirm this transfer. Enter it here:');
-    if (!otp) return;
-    const res = await authedFetch('/api/admin/transfers/finalize-otp', { method: 'POST', body: JSON.stringify({ transferCode, otp }) });
-    const r = await res.json();
-    alert(r.message);
-    loadAdminWallet();
-    loadWithdrawals();
-  }
+  if (req.method === 'GET' && req.url === '/api/admin/stats') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const customers = readJSON('customers.json');
+    const orders = readJSON('orders.json');
+    const withdrawals = readJSON('withdrawals.json');
+    const disputes = readJSON('disputes.json');
 
-  async function loadWithdrawals(){
-    const res = await authedFetch('/api/admin/withdrawals');
-    const r = await res.json();
-    const list = document.getElementById('withdrawalsList');
-    if (!r.ok || r.withdrawals.length === 0) {
-      list.innerHTML = `<div class="empty"><h3>No withdrawal requests</h3></div>`;
-      return;
-    }
-    list.innerHTML = r.withdrawals.map(w => `
-      <div class="card">
-        <div class="card-top">
-          <div>
-            <div class="card-title">${w.storeName || w.sellerEmail}</div>
-            <div class="card-sub">${w.sellerEmail} · ${new Date(w.date).toLocaleString()}</div>
-          </div>
-          <span class="badge ${w.status === 'Pending' ? 'pending' : w.status === 'Processing' ? 'pending' : w.status === 'Approved' ? 'approved' : 'rejected'}">${w.status}</span>
-        </div>
-        <div class="row"><span>Requested amount</span><span>${money(w.amount)}</span></div>
-        <div class="row"><span>Fee</span><span>${money(w.fee)}</span></div>
-        <div class="row"><span>Net payout</span><span><b>${money(w.netAmount)}</b></span></div>
-        <div class="row"><span>Bank</span><span>${w.bank} · ${w.accountNumber} · ${w.accountName}</span></div>
-        ${w.status === 'Processing' ? `<div class="row" style="color:var(--gray-600);">${w.needsOtp ? 'Waiting on an OTP to finish this transfer.' : 'Sent to Paystack — waiting for confirmation.'}</div>` : ''}
-        ${w.status === 'Pending' ? `
-        <div class="actions">
-          <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve &amp; Pay</button>
-          <button class="btn reject" onclick="decideWithdrawal(${w.id}, 'Rejected')">Reject &amp; Refund</button>
-        </div>
-        <div class="actions" style="margin-top:6px;">
-          <button class="btn" style="width:100%; background:#f2f2f2; color:var(--gray-600); font-size:11.5px; padding:8px 14px;" onclick="decideWithdrawal(${w.id}, 'ApprovedManual')">I already paid this manually — just mark it Approved</button>
-        </div>` : ''}
-        ${w.status === 'Approved' && w.paidManually ? `<div class="row" style="color:var(--gray-600);">Paid manually (not sent via Paystack).</div>` : ''}
-        ${w.status === 'Processing' && w.needsOtp ? `
-        <div class="actions">
-          <button class="btn approve" onclick="promptOtp('${w.transferCode}')">Enter OTP</button>
-        </div>` : ''}
-      </div>
-    `).join('');
-  }
-
-  async function decideWithdrawal(id, decision){
-    if (decision === 'Rejected' && !confirm('Reject this withdrawal and refund the seller wallet?')) return;
-    if (decision === 'Approved' && !confirm('This will send real money to the seller\'s bank account right now via Paystack. Continue?')) return;
-    if (decision === 'ApprovedManual' && !confirm('This does NOT send any money. Only use this if you have ALREADY paid the seller yourself. Continue?')) return;
-    const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision }) });
-    const r = await res.json();
-    alert(r.message);
-    loadWithdrawals();
-    loadStats();
-  }
-
-  function showVerificationTab(name){
-    document.querySelectorAll('[data-vtab]').forEach(t => t.classList.toggle('active', t.dataset.vtab === name));
-    document.getElementById('verificationsList').style.display = name === 'pending' ? 'block' : 'none';
-    document.getElementById('decidedVerificationsList').style.display = name === 'decided' ? 'block' : 'none';
-  }
-
-  async function loadVerifications(){
-    const res = await authedFetch('/api/admin/verifications');
-    const r = await res.json();
-    const list = document.getElementById('verificationsList');
-    if (!r.ok || r.sellers.length === 0) {
-      list.innerHTML = `<div class="empty"><h3>No pending verifications</h3></div>`;
-    } else {
-      list.innerHTML = r.sellers.map(s => {
-        const v = s.verification || {};
-        let blocks = '';
-
-        if (v.identityStatus === 'Pending review') {
-          blocks += `
-            <div class="card sub-card">
-              <div class="card-top"><div class="card-title">Identity</div><span class="badge pending">Pending review</span></div>
-              <div class="row"><span>Legal name</span><span>${v.legalName || ''}</span></div>
-              <div class="row"><span>DOB</span><span>${v.dateOfBirth || ''}</span></div>
-              <div class="row"><span>ID type</span><span>${v.idType || ''}</span></div>
-              <div class="row"><span>ID number</span><span>${v.idNumber || ''}</span></div>
-              <div class="doc-row">
-                ${v.idDocumentImage ? `<div class="doc-thumb" onclick="openLightbox('${v.idDocumentImage}')"><img src="${v.idDocumentImage}"></div>` : ''}
-                ${v.selfieImage ? `<div class="doc-thumb" onclick="openLightbox('${v.selfieImage}')"><img src="${v.selfieImage}"></div>` : ''}
-              </div>
-              <div class="actions">
-                <button class="btn approve" onclick="decideVerification('${s.email}', 'identity', 'Verified')">Approve</button>
-                <button class="btn reject" onclick="decideVerification('${s.email}', 'identity', 'Rejected')">Reject</button>
-              </div>
-            </div>`;
-        }
-        if (v.bankStatus === 'Pending review') {
-          blocks += `
-            <div class="card sub-card">
-              <div class="card-top"><div class="card-title">Bank</div><span class="badge pending">Pending review</span></div>
-              <div class="row"><span>Bank name</span><span>${v.bankName || ''}</span></div>
-              <div class="row"><span>Account number</span><span>${v.accountNumber || ''}</span></div>
-              <div class="row"><span>Account name</span><span>${v.accountName || ''}</span></div>
-              <div class="actions">
-                <button class="btn approve" onclick="decideVerification('${s.email}', 'bank', 'Verified')">Approve</button>
-                <button class="btn reject" onclick="decideVerification('${s.email}', 'bank', 'Rejected')">Reject</button>
-              </div>
-            </div>`;
-        }
-        if (v.businessStatus === 'Pending review') {
-          blocks += `
-            <div class="card sub-card">
-              <div class="card-top"><div class="card-title">Business (CAC)</div><span class="badge pending">Pending review</span></div>
-              <div class="row"><span>CAC number</span><span>${v.cacNumber || ''}</span></div>
-              <div class="row"><span>Registered name</span><span>${v.registeredBusinessName || ''}</span></div>
-              <div class="doc-row">
-                ${v.cacDocumentImage ? `<div class="doc-thumb" onclick="openLightbox('${v.cacDocumentImage}')"><img src="${v.cacDocumentImage}"></div>` : ''}
-              </div>
-              <div class="actions">
-                <button class="btn approve" onclick="decideVerification('${s.email}', 'business', 'Verified')">Approve</button>
-                <button class="btn reject" onclick="decideVerification('${s.email}', 'business', 'Rejected')">Reject</button>
-              </div>
-            </div>`;
-        }
-
-        return `
-          <div class="card">
-            <div class="card-title" style="font-size:16px; margin-bottom:6px;">${s.businessName || s.email}</div>
-            ${blocks}
-          </div>
-        `;
-      }).join('');
-    }
-
-    const decidedList = document.getElementById('decidedVerificationsList');
-    const decided = r.decidedSellers || [];
-    if (decided.length === 0) {
-      decidedList.innerHTML = `<div class="empty"><h3>No decided records yet</h3></div>`;
-      return;
-    }
-    decidedList.innerHTML = decided.map(s => {
+    const totalRevenue = getPlatformRevenue();
+    const pendingWithdrawals = withdrawals.filter(w => w.status === 'Pending').length;
+    const pendingVerifications = sellers.filter(s => {
       const v = s.verification || {};
-      let blocks = '';
+      return v.identityStatus === 'Pending review' || v.bankStatus === 'Pending review' || v.businessStatus === 'Pending review';
+    }).length;
+    const openDisputes = disputes.filter(d => d.status !== 'Resolved').length;
 
-      if (v.identityStatus === 'Verified' || v.identityStatus === 'Rejected') {
-        const badgeClass = v.identityStatus === 'Verified' ? 'approved' : 'rejected';
-        blocks += `
-          <div class="card sub-card">
-            <div class="card-top"><div class="card-title">Identity</div><span class="badge ${badgeClass}">${v.identityStatus}</span></div>
-            <div class="row"><span>Legal name</span><span>${v.legalName || ''}</span></div>
-            <div class="row"><span>DOB</span><span>${v.dateOfBirth || ''}</span></div>
-            <div class="row"><span>ID type</span><span>${v.idType || ''}</span></div>
-            <div class="row"><span>ID number</span><span>${v.idNumber || ''}</span></div>
-            <div class="doc-row">
-              ${v.idDocumentImage ? `<div class="doc-thumb" onclick="openLightbox('${v.idDocumentImage}')"><img src="${v.idDocumentImage}"></div>` : ''}
-              ${v.selfieImage ? `<div class="doc-thumb" onclick="openLightbox('${v.selfieImage}')"><img src="${v.selfieImage}"></div>` : ''}
-            </div>
-          </div>`;
-      }
-      if (v.bankStatus === 'Verified' || v.bankStatus === 'Rejected') {
-        const badgeClass = v.bankStatus === 'Verified' ? 'approved' : 'rejected';
-        blocks += `
-          <div class="card sub-card">
-            <div class="card-top"><div class="card-title">Bank</div><span class="badge ${badgeClass}">${v.bankStatus}</span></div>
-            <div class="row"><span>Bank name</span><span>${v.bankName || ''}</span></div>
-            <div class="row"><span>Account number</span><span>${v.accountNumber || ''}</span></div>
-            <div class="row"><span>Account name</span><span>${v.accountName || ''}</span></div>
-          </div>`;
-      }
-      if (v.businessStatus === 'Verified' || v.businessStatus === 'Rejected') {
-        const badgeClass = v.businessStatus === 'Verified' ? 'approved' : 'rejected';
-        blocks += `
-          <div class="card sub-card">
-            <div class="card-top"><div class="card-title">Business (CAC)</div><span class="badge ${badgeClass}">${v.businessStatus}</span></div>
-            <div class="row"><span>CAC number</span><span>${v.cacNumber || ''}</span></div>
-            <div class="row"><span>Registered name</span><span>${v.registeredBusinessName || ''}</span></div>
-            <div class="doc-row">
-              ${v.cacDocumentImage ? `<div class="doc-thumb" onclick="openLightbox('${v.cacDocumentImage}')"><img src="${v.cacDocumentImage}"></div>` : ''}
-            </div>
-          </div>`;
-      }
-
-      return `
-        <div class="card">
-          <div class="card-title" style="font-size:16px; margin-bottom:6px;">${s.businessName || s.email}</div>
-          ${blocks}
-        </div>
-      `;
-    }).join('');
+    sendJSON(res, {
+      ok: true,
+      totalSellers: sellers.length,
+      totalCustomers: customers.length,
+      totalOrders: orders.length,
+      totalRevenue,
+      pendingWithdrawals,
+      pendingVerifications,
+      openDisputes
+    });
+    return;
   }
 
-  async function decideVerification(email, type, decision){
-    const res = await authedFetch('/api/admin/verifications/decide', { method: 'POST', body: JSON.stringify({ email, type, decision }) });
-    const r = await res.json();
-    if (!r.ok) { alert(r.message); return; }
-    loadVerifications();
-    loadStats();
+  // ---------- ADMIN: PLATFORM WALLET ----------
+  // The platform's "balance" is every service fee ever earned, minus
+  // whatever the admin has already withdrawn out to their own bank account.
+  if (req.method === 'GET' && req.url === '/api/admin/wallet') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const adminWithdrawals = readJSON('admin-withdrawals.json');
+
+    const totalRevenue = getPlatformRevenue();
+    const totalWithdrawn = adminWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+    const balance = totalRevenue - totalWithdrawn;
+
+    sendJSON(res, { ok: true, balance, totalRevenue, totalWithdrawn, transactions: adminWithdrawals.slice().reverse() });
+    return;
   }
 
-  async function loadDisputes(){
-    const res = await authedFetch('/api/admin/disputes');
-    const r = await res.json();
-    const list = document.getElementById('disputesList');
-    if (!r.ok || r.disputes.length === 0) {
-      list.innerHTML = `<div class="empty"><h3>No disputes</h3></div>`;
-      return;
+  // Wipes old/demo withdrawal records so the Platform Wallet balance stops
+  // counting their fees. Does not touch real orders, products, or seller
+  // accounts — only the withdrawal request list. Gated behind the same PIN
+  // as moving real money, since it changes the revenue the dashboard shows.
+  if (req.method === 'POST' && req.url === '/api/admin/withdrawals/clear-demo') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ pin }) => {
+      const { withdrawalPin } = getSettings();
+      if (!pin || pin !== withdrawalPin) {
+        return sendJSON(res, { ok: false, message: 'Incorrect withdrawal PIN.' });
+      }
+      writeJSON('withdrawals.json', []);
+      sendJSON(res, { ok: true, message: 'Cleared. Seller withdrawal history and the Platform Wallet are back to zero.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/withdraw') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(async ({ amount, bank, bankCode, accountNumber, accountName, pin }) => {
+      amount = Number(amount);
+      if (!amount || amount <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid amount.' });
+      if (!bank || !bankCode || !accountNumber || !accountName) {
+        return sendJSON(res, { ok: false, message: 'Please select your bank and verify your account first.' });
+      }
+      // A second, separate check just for moving money out — even inside an
+      // already-logged-in admin session, so a browser left open (or a
+      // stolen session) still can't withdraw funds without this PIN.
+      const { withdrawalPin } = getSettings();
+      if (!pin || pin !== withdrawalPin) {
+        return sendJSON(res, { ok: false, message: 'Incorrect withdrawal PIN.' });
+      }
+
+      const adminWithdrawals = readJSON('admin-withdrawals.json');
+      const totalRevenue = getPlatformRevenue();
+      const totalWithdrawn = adminWithdrawals
+        .filter(w => w.status !== 'Failed')
+        .reduce((sum, w) => sum + w.amount, 0);
+      const balance = totalRevenue - totalWithdrawn;
+
+      if (amount > balance) {
+        return sendJSON(res, { ok: false, message: 'Amount exceeds available platform balance.' });
+      }
+
+      const withdrawal = {
+        id: Date.now(),
+        amount, bank, bankCode, accountNumber, accountName,
+        status: 'Processing',
+        date: new Date().toISOString()
+      };
+
+      // Send the money for real, right now, via Paystack. Nothing is saved
+      // to admin-withdrawals.json unless the transfer actually starts, so a
+      // failed attempt never looks like money that left the account.
+      try {
+        const recipientCode = await createTransferRecipient(accountName, accountNumber, bankCode);
+        const reference = `admin-wd-${withdrawal.id}`;
+        const transfer = await initiateTransfer(amount, recipientCode, 'SellHub admin withdrawal', reference);
+        withdrawal.transferCode = transfer.transfer_code;
+        withdrawal.transferReference = reference;
+        if (transfer.status === 'otp') withdrawal.needsOtp = true;
+
+        adminWithdrawals.push(withdrawal);
+        writeJSON('admin-withdrawals.json', adminWithdrawals);
+
+        sendJSON(res, {
+          ok: true,
+          message: transfer.status === 'otp'
+            ? 'Transfer started — Paystack sent an OTP to finish it. Enter it below to complete the payout.'
+            : 'Transfer sent! It will show as Paid once Paystack confirms it (usually under a minute).',
+          balance: balance - amount,
+          withdrawal
+        });
+      } catch (err) {
+        sendJSON(res, { ok: false, message: 'Transfer failed to start: ' + err.message + '. Nothing was withdrawn — check your Paystack balance and bank details, then try again.' });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/transfers/finalize-otp') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ transferCode, otp }) => {
+      if (!transferCode || !otp) return sendJSON(res, { ok: false, message: 'Enter the OTP Paystack sent you.' });
+      paystackRequest('POST', '/transfer/finalize_transfer', { transfer_code: transferCode, otp })
+        .then(() => sendJSON(res, { ok: true, message: 'OTP accepted — the transfer will confirm shortly.' }))
+        .catch(err => sendJSON(res, { ok: false, message: err.message || 'Could not finalize that transfer.' }));
+    });
+    return;
+  }
+
+  // ---------- ADMIN: WITHDRAWALS ----------
+  if (req.method === 'GET' && req.url === '/api/admin/withdrawals') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const withdrawals = readJSON('withdrawals.json');
+    sendJSON(res, { ok: true, withdrawals: withdrawals.slice().reverse() });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/withdrawals/decide') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(async ({ id, decision }) => {
+      if (!['Approved', 'Rejected', 'ApprovedManual'].includes(decision)) {
+        return sendJSON(res, { ok: false, message: 'Invalid decision.' });
+      }
+      const withdrawals = readJSON('withdrawals.json');
+      const withdrawal = withdrawals.find(w => w.id === id);
+      if (!withdrawal) return sendJSON(res, { ok: false, message: 'Withdrawal not found.' });
+      if (withdrawal.status !== 'Pending') return sendJSON(res, { ok: false, message: 'This withdrawal was already decided.' });
+
+      if (decision === 'Rejected') {
+        withdrawal.status = 'Rejected';
+        writeJSON('withdrawals.json', withdrawals);
+
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Rejected';
+          // A rejected withdrawal returns the held funds to the seller's
+          // wallet (they were deducted up-front when the request was made).
+          seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;
+          writeJSON('sellers.json', sellers);
+        }
+        return sendJSON(res, { ok: true, message: 'Withdrawal rejected and refunded to the seller\'s wallet.' });
+      }
+
+      // Fallback for while Paystack Transfers isn't available yet (e.g. a
+      // Starter Business account that hasn't upgraded to Registered Business).
+      // This just marks it paid — YOU still have to actually send the money
+      // yourself through your own bank or Paystack dashboard.
+      if (decision === 'ApprovedManual') {
+        withdrawal.status = 'Approved';
+        withdrawal.paidManually = true;
+        writeJSON('withdrawals.json', withdrawals);
+
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Approved';
+          writeJSON('sellers.json', sellers);
+        }
+        return sendJSON(res, { ok: true, message: 'Marked as paid. Remember: SellHub did NOT send any money — make sure you actually transferred it yourself.' });
+      }
+
+      // Approving sends the real payout via Paystack right now, rather than
+      // just flipping a status flag. The request stays Pending (so nothing
+      // looks paid, and it can be retried) unless the transfer actually starts.
+      if (!withdrawal.bankCode) {
+        return sendJSON(res, { ok: false, message: 'This request was submitted before bank verification was added — ask the seller to delete and resubmit it, or pay them manually and reject this one.' });
+      }
+      try {
+        const recipientCode = await createTransferRecipient(withdrawal.accountName, withdrawal.accountNumber, withdrawal.bankCode);
+        const reference = `seller-wd-${withdrawal.id}`;
+        const transfer = await initiateTransfer(withdrawal.netAmount, recipientCode, `SellHub withdrawal for ${withdrawal.storeName || withdrawal.sellerEmail}`, reference);
+        withdrawal.status = 'Processing';
+        withdrawal.transferCode = transfer.transfer_code;
+        withdrawal.transferReference = reference;
+        if (transfer.status === 'otp') withdrawal.needsOtp = true;
+        writeJSON('withdrawals.json', withdrawals);
+
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Processing';
+          writeJSON('sellers.json', sellers);
+        }
+
+        sendJSON(res, {
+          ok: true,
+          message: transfer.status === 'otp'
+            ? 'Transfer started — Paystack needs an OTP to finish it. Enter it from the withdrawal list to complete the payout.'
+            : 'Transfer sent! It will show as Paid once Paystack confirms it (usually under a minute).'
+        });
+      } catch (err) {
+        sendJSON(res, { ok: false, message: 'Transfer failed to start: ' + err.message + '. The request is still Pending — fix the issue (e.g. low Paystack balance) and try again.' });
+      }
+    });
+    return;
+  }
+
+  // ---------- ADMIN: VERIFICATIONS ----------
+  if (req.method === 'GET' && req.url === '/api/admin/verifications') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const pending = sellers
+      .filter(s => {
+        const v = s.verification || {};
+        return v.identityStatus === 'Pending review' || v.bankStatus === 'Pending review' || v.businessStatus === 'Pending review';
+      })
+      .map(s => ({
+        email: s.email,
+        businessName: s.businessName,
+        verification: s.verification
+      }));
+
+    // Once a submission is decided (Verified or Rejected) it drops out of the
+    // "pending" list above, but the admin should still be able to pull up the
+    // documents that were reviewed — this is the permanent record of that.
+    const decided = sellers
+      .filter(s => {
+        const v = s.verification || {};
+        return v.identityStatus === 'Verified' || v.identityStatus === 'Rejected'
+          || v.bankStatus === 'Verified' || v.bankStatus === 'Rejected'
+          || v.businessStatus === 'Verified' || v.businessStatus === 'Rejected';
+      })
+      .map(s => ({
+        email: s.email,
+        businessName: s.businessName,
+        verification: s.verification
+      }));
+
+    sendJSON(res, { ok: true, sellers: pending, decidedSellers: decided });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/verifications/decide') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ email, type, decision }) => {
+      if (!['identity', 'bank', 'business'].includes(type)) {
+        return sendJSON(res, { ok: false, message: 'Invalid verification type.' });
+      }
+      if (!['Verified', 'Rejected'].includes(decision)) {
+        return sendJSON(res, { ok: false, message: 'Invalid decision.' });
+      }
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === email);
+      if (!seller || !seller.verification) return sendJSON(res, { ok: false, message: 'Seller not found.' });
+
+      seller.verification[`${type}Status`] = decision;
+      writeJSON('sellers.json', sellers);
+
+      if (decision === 'Verified') {
+        const TYPE_LABELS = { identity: 'Identity', bank: 'Bank account', business: 'Business (CAC)' };
+        const label = TYPE_LABELS[type] || type;
+        const sellerPhone = seller.whatsappNumber || seller.businessPhone;
+        if (sellerPhone) {
+          sendWhatsApp(sellerPhone, `SellHub: Good news! Your ${label} verification has been approved. ✅`)
+            .catch(err => console.log('WhatsApp error:', err.message));
+        }
+      }
+
+      sendJSON(res, { ok: true, message: `${type} ${decision.toLowerCase()}.` });
+    });
+    return;
+  }
+
+  // ---------- ADMIN: DISPUTES ----------
+  if (req.method === 'GET' && req.url === '/api/admin/disputes') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const disputes = readJSON('disputes.json');
+    const orders = readJSON('orders.json');
+    const sellers = readJSON('sellers.json');
+
+    const withOrders = disputes.map(d => {
+      const order = orders.find(o => o.id === d.orderId) || null;
+      // Show the admin exactly who they'd need to contact — the seller's
+      // name, phone, email and bank details, plus how many disputes this
+      // same seller has been named in (a pattern is more useful than a
+      // single complaint when deciding whether to warn or suspend).
+      const sellersInfo = (d.sellerEmails || []).map(email => {
+        const s = sellers.find(x => x.email === email);
+        if (!s) return { email, found: false };
+        const disputeCount = disputes.filter(other => (other.sellerEmails || []).includes(email)).length;
+        return {
+          email: s.email,
+          found: true,
+          businessName: s.businessName,
+          fullName: s.fullName,
+          phone: s.businessPhone,
+          bankName: s.verification && s.verification.bankName,
+          accountNumber: s.verification && s.verification.accountNumber,
+          accountName: s.verification && s.verification.accountName,
+          suspended: !!s.suspended,
+          warningCount: (s.warnings || []).length,
+          disputeCount
+        };
+      });
+      return { ...d, order, sellersInfo };
+    });
+
+    sendJSON(res, { ok: true, disputes: withOrders.reverse() });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/sellers/warn') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(async ({ email, message }) => {
+      if (!message) return sendJSON(res, { ok: false, message: 'Please include a warning message.' });
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Seller not found.' });
+
+      seller.warnings = seller.warnings || [];
+      seller.warnings.push({ message, date: new Date().toISOString() });
+      writeJSON('sellers.json', sellers);
+
+      try {
+        await sendEmail(
+          email,
+          'Warning from SellHub',
+          `<p>Hello ${seller.fullName || ''},</p><p>${message}</p><p>Please take this seriously — repeated issues can lead to your account being suspended.</p>`
+        );
+      } catch (err) { console.log('Email error:', err.message); }
+
+      const sellerPhone = seller.whatsappNumber || seller.businessPhone;
+      if (sellerPhone) {
+        sendWhatsApp(sellerPhone, `SellHub warning: ${message}`).catch(err => console.log('WhatsApp error:', err.message));
+      }
+
+      sendJSON(res, { ok: true, message: 'Warning sent to seller.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/sellers/suspend') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(async ({ email, suspended, reason }) => {
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Seller not found.' });
+
+      seller.suspended = !!suspended;
+      if (suspended) seller.suspendReason = reason || '';
+      writeJSON('sellers.json', sellers);
+
+      try {
+        await sendEmail(
+          email,
+          suspended ? 'Your SellHub seller account has been suspended' : 'Your SellHub seller account has been reinstated',
+          suspended
+            ? `<p>Hello ${seller.fullName || ''},</p><p>Your seller account has been suspended.${reason ? ' Reason: ' + reason : ''}</p><p>Contact support if you believe this is a mistake.</p>`
+            : `<p>Hello ${seller.fullName || ''},</p><p>Your seller account has been reinstated. You can log back in and continue selling.</p>`
+        );
+      } catch (err) { console.log('Email error:', err.message); }
+
+      const sellerPhone = seller.whatsappNumber || seller.businessPhone;
+      if (sellerPhone) {
+        const waMessage = suspended
+          ? `SellHub: Your seller account has been suspended.${reason ? ' Reason: ' + reason : ''} Contact support if you believe this is a mistake.`
+          : `SellHub: Your seller account has been reinstated. You can log back in and continue selling.`;
+        sendWhatsApp(sellerPhone, waMessage).catch(err => console.log('WhatsApp error:', err.message));
+      }
+
+      sendJSON(res, { ok: true, message: suspended ? 'Seller suspended.' : 'Seller reinstated.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/disputes/resolve') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ id, resolution }) => {
+      const disputes = readJSON('disputes.json');
+      const dispute = disputes.find(d => d.id === id);
+      if (!dispute) return sendJSON(res, { ok: false, message: 'Dispute not found.' });
+
+      dispute.status = 'Resolved';
+      dispute.resolution = resolution || '';
+      dispute.resolvedAt = new Date().toISOString();
+      writeJSON('disputes.json', disputes);
+      sendJSON(res, { ok: true, message: 'Dispute marked as resolved.' });
+    });
+    return;
+  }
+
+  // ---------- PRODUCTS ----------
+  if (req.method === 'GET' && req.url === '/api/products') {
+    const products = readJSON('products.json');
+    const reviews = readJSON('reviews.json');
+    const sellers = readJSON('sellers.json');
+    const withRatings = products
+      // A suspended seller's storefront and listings disappear from
+      // customer view immediately — no separate step needed.
+      .filter(p => {
+        const seller = sellers.find(s => s.email === p.sellerEmail);
+        return !(seller && seller.suspended);
+      })
+      .map(p => {
+        const productReviews = reviews.filter(r => r.productId === p.id);
+        const avg = productReviews.length
+          ? productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length
+          : null;
+        // A seller only counts as "Verified" once an admin has approved their
+        // identity — phone verification alone (automatic at signup) isn't enough.
+        const seller = sellers.find(s => s.email === p.sellerEmail);
+        const sellerVerified = !!(seller && seller.verification && seller.verification.identityStatus === 'Verified');
+        return { ...p, avgRating: avg, reviewCount: productReviews.length, sellerVerified };
+      });
+    return sendJSON(res, { ok: true, products: withRatings });
+  }
+
+  // ---------- FEE INFO (public — just the percentage, for display before checkout) ----------
+  if (req.method === 'GET' && req.url === '/api/fee-info') {
+    const { customerServiceFeePercent } = getSettings();
+    return sendJSON(res, { ok: true, customerServiceFeePercent });
+  }
+
+  // ---------- SAVED ADDRESS ----------
+  if (req.method === 'POST' && req.url === '/api/save-address') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(({ address, state, city, phone }) => {
+      const customers = readJSON('customers.json');
+      const customer = customers.find(c => c.email === session.email);
+      if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+      customer.savedAddress = { address, state, city, phone };
+      writeJSON('customers.json', customers);
+      sendJSON(res, { ok: true, message: 'Address saved.' });
+    });
+    return;
+  }
+
+  // ---------- PAYSTACK: RECHECK MY PENDING PAYMENTS ----------
+  // Safety net for a customer who paid but closed the tab before coming back
+  // (and for when the webhook can't reach us, e.g. while testing on localhost).
+  // Only ever looks at THIS customer's own recent pending payments.
+  if (req.method === 'POST' && req.url === '/api/paystack/recheck') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    (async () => {
+      let credited = 0;
+      if (PAYSTACK_SECRET_KEY) {
+        const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+        const mine = readPayments()
+          .filter(p => p.email === session.email && p.status === 'pending' && new Date(p.createdAt).getTime() > cutoff)
+          .slice(-5);
+        for (const p of mine) {
+          try {
+            const tx = await paystackRequest('GET', '/transaction/verify/' + encodeURIComponent(p.reference));
+            const result = creditPaystackPayment(p.reference, tx);
+            if (result.ok && !result.alreadyCredited) credited++;
+          } catch (err) { /* not paid yet, or Paystack unreachable — try again next time */ }
+        }
+      }
+      sendJSON(res, { ok: true, credited });
+    })();
+    return;
+  }
+
+  // ---------- WALLET ----------
+  if (req.method === 'GET' && req.url.startsWith('/api/wallet')) {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    const customers = readJSON('customers.json');
+    const customer = customers.find(c => c.email === session.email);
+    if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    return sendJSON(res, {
+      ok: true,
+      balance: customer.walletBalance || 0,
+      transactions: customer.transactions || []
+    });
+  }
+
+  // The old demo deposit let anyone add any amount for free. It is switched
+  // off permanently — money can now only enter a wallet through Paystack.
+  if (req.method === 'POST' && req.url === '/api/deposit') {
+    return sendJSON(res, { ok: false, message: 'Please use the Add Money button to pay securely with Paystack.' }, 403);
+  }
+
+  // ---------- PAYSTACK: HOW MUCH WILL THIS DEPOSIT COST? ----------
+  // Lets the wallet screen show "you pay ₦5,178 (₦5,000 + ₦178 fee)" before
+  // the customer commits. The server always recalculates the real amount itself.
+  if (req.method === 'GET' && req.url.startsWith('/api/paystack/quote')) {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    const amount = Math.floor(Number(new URLSearchParams(req.url.split('?')[1] || '').get('amount')));
+    if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_NAIRA || amount > MAX_DEPOSIT_NAIRA) {
+      return sendJSON(res, { ok: false, message: 'Enter an amount between ₦' + MIN_DEPOSIT_NAIRA + ' and ₦' + MAX_DEPOSIT_NAIRA.toLocaleString() + '.' });
     }
-    list.innerHTML = r.disputes.map(d => `
-      <div class="card">
-        <div class="card-top">
-          <div>
-            <div class="card-title">Order #${d.orderId}</div>
-            <div class="card-sub">${d.customerEmail} · ${new Date(d.date).toLocaleString()}</div>
-          </div>
-          <span class="badge ${d.status === 'Resolved' ? 'approved' : 'pending'}">${d.status}</span>
-        </div>
-        <div class="row"><span>Reason</span><span>${d.reason}</span></div>
-        ${d.details ? `<div class="row"><span>Details</span><span style="max-width:60%; text-align:right;">${d.details}</span></div>` : ''}
-        ${d.order ? `<div class="row"><span>Order total</span><span>${money(d.order.total)}</span></div>` : ''}
-        ${d.resolution ? `<div class="row"><span>Resolution</span><span>${d.resolution}</span></div>` : ''}
-
-        ${(d.sellersInfo || []).map(s => s.found ? `
-          <div class="card sub-card">
-            <div class="card-top">
-              <div class="card-title">${s.businessName || s.email}${s.suspended ? ' <span class="badge rejected">Suspended</span>' : ''}</div>
-              <span class="card-sub">${s.disputeCount} dispute(s) on record · ${s.warningCount} warning(s) sent</span>
-            </div>
-            <div class="row"><span>Contact name</span><span>${s.fullName || ''}</span></div>
-            <div class="row"><span>Phone</span><span>${s.phone || 'Not provided'}</span></div>
-            <div class="row"><span>Email</span><span>${s.email}</span></div>
-            <div class="row"><span>Bank details</span><span>${s.bankName ? `${s.bankName} · ${s.accountNumber} · ${s.accountName}` : 'Not verified yet'}</span></div>
-            <div class="actions">
-              <button class="btn approve" onclick="warnSeller('${s.email}')">Warn Seller</button>
-              ${s.suspended
-                ? `<button class="btn approve" onclick="suspendSeller('${s.email}', false)">Reinstate</button>`
-                : `<button class="btn reject" onclick="suspendSeller('${s.email}', true)">Suspend Seller</button>`}
-            </div>
-          </div>
-        ` : '').join('')}
-
-        ${d.status !== 'Resolved' ? `
-        <div class="actions">
-          <button class="btn resolve" onclick="resolveDispute(${d.id})">Mark Resolved</button>
-        </div>` : ''}
-      </div>
-    `).join('');
+    return sendJSON(res, Object.assign({ ok: true }, depositQuote(amount)));
   }
 
-  async function warnSeller(email){
-    const message = prompt('Warning message to send to this seller:');
-    if (!message) return;
-    const res = await authedFetch('/api/admin/sellers/warn', { method: 'POST', body: JSON.stringify({ email, message }) });
-    const r = await res.json();
-    alert(r.message);
-    loadDisputes();
+  // ---------- PAYSTACK: START A DEPOSIT ----------
+  if (req.method === 'POST' && req.url === '/api/paystack/initialize') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(async ({ amount }) => {
+      if (!PAYSTACK_SECRET_KEY) {
+        return sendJSON(res, { ok: false, message: 'Payments are not switched on yet. Please contact support.' });
+      }
+      amount = Math.floor(Number(amount)); // whole naira only
+      if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_NAIRA || amount > MAX_DEPOSIT_NAIRA) {
+        return sendJSON(res, { ok: false, message: 'Enter an amount between ₦' + MIN_DEPOSIT_NAIRA + ' and ₦' + MAX_DEPOSIT_NAIRA.toLocaleString() + '.' });
+      }
+      const customers = readJSON('customers.json');
+      const customer = customers.find(c => c.email === session.email);
+      if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      const reference = 'SH_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+      const quote = depositQuote(amount); // { amount, fee, total }
+
+      // Save the pending payment BEFORE contacting Paystack, so a webhook can
+      // always find it — even if the customer closes their browser mid-payment.
+      const payments = readPayments();
+      payments.push({ reference, email: customer.email, amount, fee: quote.fee, total: quote.total, status: 'pending', createdAt: new Date().toISOString() });
+      writeJSON('payments.json', payments);
+
+      try {
+        const data = await paystackRequest('POST', '/transaction/initialize', {
+          email: customer.email,
+          amount: quote.total * 100, // Paystack wants kobo; the customer pays deposit + fee
+          currency: 'NGN',
+          reference,
+          callback_url: APP_BASE_URL + '/api/paystack/callback',
+          metadata: { purpose: 'wallet_deposit', wallet_amount: amount, paystack_fee: quote.fee }
+        });
+        sendJSON(res, { ok: true, authorizationUrl: data.authorization_url, reference, amount, fee: quote.fee, total: quote.total });
+      } catch (err) {
+        console.error('Paystack initialize failed:', err.message);
+        sendJSON(res, { ok: false, message: 'Could not start the payment. Please try again.' });
+      }
+    }).catch(() => sendJSON(res, { ok: false, message: 'Invalid request.' }));
+    return;
   }
 
-  async function suspendSeller(email, suspended){
-    if (suspended && !confirm('Suspend this seller? Their products and storefront will disappear from customers immediately, and they will not be able to log in.')) return;
-    let reason = '';
-    if (suspended) reason = prompt('Reason for suspension (sent to the seller by email):') || '';
-    const res = await authedFetch('/api/admin/sellers/suspend', { method: 'POST', body: JSON.stringify({ email, suspended, reason }) });
-    const r = await res.json();
-    alert(r.message);
-    loadDisputes();
+  // ---------- PAYSTACK: CUSTOMER COMES BACK AFTER PAYING ----------
+  // Paystack sends the browser here. We never trust the browser's word that
+  // it paid — we ask Paystack directly, then credit the wallet.
+  if (req.method === 'GET' && req.url.startsWith('/api/paystack/callback')) {
+    const params = new URLSearchParams(req.url.split('?')[1] || '');
+    const reference = params.get('reference') || params.get('trxref');
+    (async () => {
+      let outcome = 'failed';
+      try {
+        if (reference && PAYSTACK_SECRET_KEY) {
+          const tx = await paystackRequest('GET', '/transaction/verify/' + encodeURIComponent(reference));
+          const result = creditPaystackPayment(reference, tx);
+          if (result.ok) outcome = 'success';
+          else if (tx.status === 'abandoned') outcome = 'cancelled';
+          else if (['ongoing', 'pending', 'processing', 'queued'].includes(tx.status)) outcome = 'pending';
+        }
+      } catch (err) {
+        console.error('Paystack callback verify failed:', err.message);
+      }
+      res.writeHead(302, { Location: '/dashboard?deposit=' + outcome });
+      res.end();
+    })();
+    return;
   }
 
-  async function resolveDispute(id){
-    const resolution = prompt('Briefly describe how this was resolved (shown internally only):') || '';
-    const res = await authedFetch('/api/admin/disputes/resolve', { method: 'POST', body: JSON.stringify({ id, resolution }) });
-    const r = await res.json();
-    if (!r.ok) { alert(r.message); return; }
-    loadDisputes();
-    loadStats();
+  // ---------- PAYSTACK: WEBHOOK (Paystack tells our server directly) ----------
+  // Backup for when a customer pays but closes the browser before returning.
+  // Needs a public https address to work; on localhost the callback above does the job.
+  if (req.method === 'POST' && req.url === '/api/paystack/webhook') {
+    readRawBody(req).then(async (raw) => {
+      const signature = String(req.headers['x-paystack-signature'] || '');
+      const expected = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY || 'unset').update(raw).digest('hex');
+      const a = Buffer.from(expected);
+      const b = Buffer.from(signature);
+      if (!PAYSTACK_SECRET_KEY || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        res.writeHead(401); res.end(); return;
+      }
+      let event;
+      try { event = JSON.parse(raw.toString('utf8')); }
+      catch (e) { res.writeHead(400); res.end(); return; }
+
+      if (event.event === 'charge.success' && event.data && event.data.reference) {
+        try {
+          const tx = await paystackRequest('GET', '/transaction/verify/' + encodeURIComponent(event.data.reference));
+          creditPaystackPayment(event.data.reference, tx);
+        } catch (err) {
+          console.error('Paystack webhook verify failed:', err.message);
+          res.writeHead(500); res.end(); return; // non-200 makes Paystack retry later
+        }
+      } else if (
+        ['transfer.success', 'transfer.failed', 'transfer.reversed'].includes(event.event) &&
+        event.data && event.data.reference
+      ) {
+        try {
+          handleTransferWebhook(event.event, event.data.reference, event.data.reason || (event.data.failures && event.data.failures.reason));
+        } catch (err) {
+          console.error('Paystack transfer webhook handling failed:', err.message);
+          res.writeHead(500); res.end(); return;
+        }
+      }
+      res.writeHead(200); res.end();
+    }).catch(() => { res.writeHead(400); res.end(); });
+    return;
   }
 
-  function logout(){
-    localStorage.removeItem('sellhub_admin_token');
-    window.location.href = '/admin-login';
+  // ---------- CHECKOUT ----------
+  if (req.method === 'POST' && req.url === '/api/checkout') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(async (form) => {
+      const { fullName, phone, deliveryEmail, address, state, city, instructions, cartIds, saveAddress } = form;
+      const customers = readJSON('customers.json');
+      const products = readJSON('products.json');
+      const customer = customers.find(c => c.email === session.email);
+      if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      const items = products.filter(p => cartIds.includes(p.id));
+      if (items.length === 0) return sendJSON(res, { ok: false, message: 'Your cart is empty.' });
+
+      const outOfStock = items.find(p => p.status === 'Out of Stock');
+      if (outOfStock) return sendJSON(res, { ok: false, message: `"${outOfStock.name}" is out of stock.` });
+
+      // Snapshot each item's actual charged price (the discount price when one
+      // is set) so every later step — wallet crediting, order display —
+      // reads from the same number instead of recomputing it differently.
+      const orderItems = items.map(p => ({ ...p, effectivePrice: p.discountPrice || p.price }));
+
+      // Fees are computed server-side, never trusted from the client.
+      const { customerServiceFeePercent } = getSettings();
+      const subtotal = orderItems.reduce((sum, p) => sum + p.effectivePrice, 0);
+      const serviceFee = Math.round(subtotal * (customerServiceFeePercent / 100));
+      const total = subtotal + serviceFee;
+
+      if ((customer.walletBalance || 0) < total) {
+        return sendJSON(res, { ok: false, message: 'Insufficient wallet balance. Please deposit more funds.' });
+      }
+
+      customer.walletBalance -= total;
+      customer.transactions = customer.transactions || [];
+      customer.transactions.unshift({
+        type: 'purchase', amount: total, subtotal, serviceFee, date: new Date().toISOString()
+      });
+      if (saveAddress) customer.savedAddress = { address, state, city, phone };
+      writeJSON('customers.json', customers);
+
+      // Each purchase takes one unit out of stock; a product that hits zero
+      // flips to Out of Stock automatically for every future shopper.
+      orderItems.forEach(item => {
+        const stocked = products.find(p => p.id === item.id);
+        if (stocked && typeof stocked.stock === 'number') {
+          stocked.stock = Math.max(0, stocked.stock - 1);
+          stocked.status = stocked.stock > 0 ? 'In Stock' : 'Out of Stock';
+        }
+      });
+      writeJSON('products.json', products);
+
+      const orders = readJSON('orders.json');
+      const order = {
+        id: Date.now(),
+        customerEmail: session.email,
+        fullName, phone, deliveryEmail, address, state, city, instructions,
+        items: orderItems, subtotal, serviceFee, serviceFeePercent: customerServiceFeePercent, total,
+        status: 'Order Received',
+        date: new Date().toISOString(),
+        reminders: []
+      };
+      orders.push(order);
+      writeJSON('orders.json', orders);
+      creditSellersForOrder(order);
+      notifyOrderStatus(order, 'Order Received');
+      notifySellerNewOrder(order);
+
+      sendJSON(res, { ok: true, message: '✅ Order placed successfully!', order });
+    }).catch(err => { console.log('ERROR:', err.message); sendJSON(res, { ok: false, message: 'Checkout failed.' }); });
+    return;
   }
 
-  loadStats();
-  loadAdminWallet();
-  loadWithdrawals();
-  loadVerifications();
-  loadDisputes();
-</script>
-</body>
-</html>
+  if (req.method === 'GET' && req.url.startsWith('/api/orders')) {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    const orders = readJSON('orders.json').filter(o => o.customerEmail === session.email);
+    return sendJSON(res, { ok: true, orders });
+  }
+
+  // ---------- NOTIFICATIONS ----------
+  if (req.method === 'GET' && req.url === '/api/notifications') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    const notifications = readJSON('notifications.json').filter(n => n.customerEmail === session.email);
+    return sendJSON(res, { ok: true, notifications });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/notifications/mark-read') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(({ notificationId }) => {
+      const notifications = readJSON('notifications.json');
+      // notificationId omitted → mark everything read (used by the bell "mark all read").
+      let changed = false;
+      notifications.forEach(n => {
+        if (n.customerEmail !== session.email) return;
+        if (notificationId && n.id !== notificationId) return;
+        if (!n.read) { n.read = true; changed = true; }
+      });
+      if (changed) writeJSON('notifications.json', notifications);
+      sendJSON(res, { ok: true });
+    });
+    return;
+  }
+
+  // ---------- PROFILE ----------
+  if (req.method === 'GET' && req.url.startsWith('/api/profile')) {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    const customers = readJSON('customers.json');
+    const customer = customers.find(c => c.email === session.email);
+    if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    return sendJSON(res, { ok: true, savedAddress: customer.savedAddress || null });
+  }
+
+  // ================= SELLER DASHBOARD =================
+
+  // ---------- SELLER ONBOARDING ----------
+  if (req.method === 'GET' && req.url === '/api/seller/onboarding-status') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === session.email);
+    if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    sendJSON(res, { ok: true, onboardingComplete: !!seller.onboardingComplete, storeSlug: seller.storeSlug || null });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/onboarding') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ category, storeName, businessPhone, whatsappNumber, state, city, businessAddress }) => {
+      if (!category || !storeName || !businessPhone || !whatsappNumber || !state || !city || !businessAddress) {
+        return sendJSON(res, { ok: false, message: 'Please fill in every field.' });
+      }
+
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      // Turn the store name into a URL-safe slug, and make sure it's unique.
+      let baseSlug = storeName.toLowerCase().trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+      if (!baseSlug) baseSlug = 'store';
+
+      let slug = baseSlug;
+      let counter = 2;
+      while (sellers.some(s => s.storeSlug === slug && s.email !== session.email)) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+
+      seller.category = category;
+      seller.storeName = storeName;
+      seller.storeSlug = slug;
+      seller.businessPhone = businessPhone;
+      seller.whatsappNumber = whatsappNumber;
+      seller.state = state;
+      seller.city = city;
+      seller.businessAddress = businessAddress;
+      seller.onboardingComplete = true;
+
+      writeJSON('sellers.json', sellers);
+      sendJSON(res, { ok: true, message: 'Store created.', storeUrl: `sellhub.ng/store/${slug}` });
+    });
+    return;
+  }
+
+  // ---------- VERIFICATION CENTER ----------
+  if (req.method === 'GET' && req.url === '/api/seller/verification-status') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === session.email);
+    if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    const v = seller.verification || {};
+    sendJSON(res, {
+      ok: true,
+      phone: 'Verified',
+      identity: v.identityStatus || 'Not started',
+      bank: v.bankStatus || 'Not started',
+      business: v.businessStatus || 'Not started'
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/verify-identity') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ legalName, dateOfBirth, idType, idNumber, idDocumentImage, selfieImage }) => {
+      if (!legalName || !dateOfBirth || !idType || !idNumber) {
+        return sendJSON(res, { ok: false, message: 'Please fill in every field.' });
+      }
+      if (!idDocumentImage || !selfieImage) {
+        return sendJSON(res, { ok: false, message: 'Please capture both a photo of your ID and a selfie.' });
+      }
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      seller.verification = seller.verification || {};
+      seller.verification.legalName = legalName;
+      seller.verification.dateOfBirth = dateOfBirth;
+      seller.verification.idType = idType;
+      seller.verification.idNumber = idNumber;
+      seller.verification.idDocumentImage = idDocumentImage;
+      seller.verification.selfieImage = selfieImage;
+      seller.verification.identityStatus = 'Pending review';
+      seller.verification.identitySubmittedAt = new Date().toISOString();
+
+      writeJSON('sellers.json', sellers);
+      notifyAdmin(`SellHub: New identity verification submitted by ${seller.businessName || seller.fullName || seller.email}. Review it in the admin dashboard.`);
+      sendJSON(res, { ok: true, message: 'Submitted for review. This usually takes 1-2 business days.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/verify-bank') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ bankName, accountNumber, accountName }) => {
+      if (!bankName || !accountNumber || !accountName) {
+        return sendJSON(res, { ok: false, message: 'Please fill in every field.' });
+      }
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      seller.verification = seller.verification || {};
+      seller.verification.bankName = bankName;
+      seller.verification.accountNumber = accountNumber;
+      seller.verification.accountName = accountName;
+      seller.verification.bankStatus = 'Pending review';
+      seller.verification.bankSubmittedAt = new Date().toISOString();
+
+      writeJSON('sellers.json', sellers);
+      notifyAdmin(`SellHub: New bank verification submitted by ${seller.businessName || seller.fullName || seller.email}. Review it in the admin dashboard.`);
+      sendJSON(res, { ok: true, message: 'Submitted for review. This usually takes 1-2 business days.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/verify-business') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ cacNumber, registeredBusinessName, cacDocumentImage }) => {
+      if (!cacNumber || !registeredBusinessName) {
+        return sendJSON(res, { ok: false, message: 'Please fill in every field.' });
+      }
+      if (!cacDocumentImage) {
+        return sendJSON(res, { ok: false, message: 'Please capture a photo of your CAC document.' });
+      }
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      seller.verification = seller.verification || {};
+      seller.verification.cacNumber = cacNumber;
+      seller.verification.registeredBusinessName = registeredBusinessName;
+      seller.verification.cacDocumentImage = cacDocumentImage;
+      seller.verification.businessStatus = 'Pending review';
+      seller.verification.businessSubmittedAt = new Date().toISOString();
+
+      writeJSON('sellers.json', sellers);
+      notifyAdmin(`SellHub: New business (CAC) verification submitted by ${seller.businessName || seller.fullName || seller.email}. Review it in the admin dashboard.`);
+      sendJSON(res, { ok: true, message: 'Submitted for review. This usually takes 1-2 business days.' });
+    });
+    return;
+  }
+
+  // ---------- SELLER PRODUCTS ----------
+  if (req.method === 'GET' && req.url === '/api/seller/products') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const products = readJSON('products.json').filter(p => p.sellerEmail === session.email);
+    return sendJSON(res, { ok: true, products });
+  }
+
+  const PRODUCT_CATEGORIES = ['Fashion', 'Shoes', 'Beauty', 'Electronics', 'Phones & Accessories', 'Food', 'Home & Living', 'Jewelry', 'Digital Products', 'Other'];
+
+  if (req.method === 'POST' && req.url === '/api/seller/products/add') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then((body) => {
+      const sellersCheck = readJSON('sellers.json');
+      const sellerCheck = sellersCheck.find(s => s.email === session.email);
+      const identityStatus = sellerCheck && sellerCheck.verification ? sellerCheck.verification.identityStatus : null;
+      if (identityStatus !== 'Verified') {
+        return sendJSON(res, {
+          ok: false,
+          message: 'Your identity must be verified by an admin before you can post products. Please complete (or wait for approval of) identity verification in the Verification Center.'
+        });
+      }
+
+      const name = (body.name || '').trim();
+      const description = (body.description || '').trim();
+      const price = Number(body.price);
+      const discountPrice = body.discountPrice ? Number(body.discountPrice) : null;
+      const stock = Number.isFinite(Number(body.stock)) ? Math.max(0, Math.floor(Number(body.stock))) : 0;
+      const category = PRODUCT_CATEGORIES.includes(body.category) ? body.category : 'Other';
+      const sku = (body.sku || '').trim();
+      const sizes = Array.isArray(body.sizes) ? body.sizes.filter(Boolean) : [];
+      const colors = Array.isArray(body.colors) ? body.colors.filter(Boolean) : [];
+      const images = Array.isArray(body.images) ? body.images.filter(Boolean) : [];
+
+      if (!name) return sendJSON(res, { ok: false, message: 'Product name is required.' });
+      if (!price || price <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid price.' });
+      if (discountPrice && discountPrice >= price) return sendJSON(res, { ok: false, message: 'Discount price must be lower than the regular price.' });
+      if (images.length === 0) return sendJSON(res, { ok: false, message: 'Please add at least one product photo.' });
+
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      const products = readJSON('products.json');
+      const newProduct = {
+        id: Date.now(),
+        name, description, price, discountPrice, stock, category, sku, sizes, colors, images,
+        status: stock > 0 ? 'In Stock' : 'Out of Stock',
+        sellerEmail: session.email,
+        storeName: seller ? seller.businessName : 'My Store',
+        storeSlug: seller ? seller.storeSlug : null,
+        dateAdded: new Date().toISOString()
+      };
+      products.push(newProduct);
+      writeJSON('products.json', products);
+      sendJSON(res, { ok: true, message: 'Product added!', product: newProduct });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/products/update') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then((body) => {
+      const products = readJSON('products.json');
+      const product = products.find(p => p.id === body.id && p.sellerEmail === session.email);
+      if (!product) return sendJSON(res, { ok: false, message: 'Product not found.' });
+
+      if (body.name && body.name.trim()) product.name = body.name.trim();
+      if (body.description !== undefined) product.description = (body.description || '').trim();
+      if (body.price && Number(body.price) > 0) product.price = Number(body.price);
+      if (body.discountPrice !== undefined) {
+        const dp = body.discountPrice ? Number(body.discountPrice) : null;
+        if (dp && dp >= product.price) return sendJSON(res, { ok: false, message: 'Discount price must be lower than the regular price.' });
+        product.discountPrice = dp;
+      }
+      if (body.stock !== undefined) {
+        product.stock = Math.max(0, Math.floor(Number(body.stock) || 0));
+        product.status = product.stock > 0 ? 'In Stock' : 'Out of Stock';
+      }
+      if (body.category && PRODUCT_CATEGORIES.includes(body.category)) product.category = body.category;
+      if (body.sku !== undefined) product.sku = (body.sku || '').trim();
+      if (Array.isArray(body.sizes)) product.sizes = body.sizes.filter(Boolean);
+      if (Array.isArray(body.colors)) product.colors = body.colors.filter(Boolean);
+      if (Array.isArray(body.images) && body.images.length > 0) product.images = body.images.filter(Boolean);
+
+      writeJSON('products.json', products);
+      sendJSON(res, { ok: true, message: 'Product updated!', product });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/products/delete') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ id }) => {
+      const products = readJSON('products.json');
+      const exists = products.some(p => p.id === id && p.sellerEmail === session.email);
+      if (!exists) return sendJSON(res, { ok: false, message: 'Product not found.' });
+
+      const remaining = products.filter(p => !(p.id === id && p.sellerEmail === session.email));
+      writeJSON('products.json', remaining);
+      sendJSON(res, { ok: true, message: 'Product deleted.' });
+    });
+    return;
+  }
+
+  // ---------- SELLER ORDERS ----------
+  if (req.method === 'GET' && req.url === '/api/seller/orders') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const orders = readJSON('orders.json').filter(o =>
+      o.items.some(i => i.sellerEmail === session.email)
+    );
+    return sendJSON(res, { ok: true, orders });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/update-order-status') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ orderId, status }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+      if (!order.items.some(i => i.sellerEmail === session.email)) {
+        return sendJSON(res, { ok: false, message: 'This order does not contain your products.' });
+      }
+
+      const steps = ['Order Received', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
+      const currentIndex = steps.indexOf(order.status);
+      const targetIndex = steps.indexOf(status);
+      // Only allow moving forward one step at a time — never skip ahead or go backwards.
+      if (targetIndex !== currentIndex + 1) {
+        return sendJSON(res, { ok: false, message: 'Orders can only move forward one step at a time.' });
+      }
+
+      order.status = status;
+      writeJSON('orders.json', orders);
+      notifyOrderStatus(order, status);
+
+      sendJSON(res, { ok: true, status: order.status });
+    });
+    return;
+  }
+
+  // ---------- SELLER: CANCEL ORDER ----------
+  if (req.method === 'POST' && req.url === '/api/seller/cancel-order') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ orderId, reason }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+      if (!order.items.some(i => i.sellerEmail === session.email)) {
+        return sendJSON(res, { ok: false, message: 'This order does not contain your products.' });
+      }
+      if (order.status === 'Delivered' || order.status === 'Cancelled') {
+        return sendJSON(res, { ok: false, message: `An order that is already ${order.status} cannot be cancelled.` });
+      }
+
+      order.status = 'Cancelled';
+      order.cancelReason = reason || '';
+      writeJSON('orders.json', orders);
+      reverseSellerCreditsAndRefundCustomer(order);
+      notifyOrderStatus(order, 'Cancelled');
+
+      sendJSON(res, { ok: true, status: order.status });
+    });
+    return;
+  }
+
+  // ---------- SELLER: UPDATE DELIVERY TRACKING ----------
+  if (req.method === 'POST' && req.url === '/api/seller/update-tracking') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ orderId, shippedDate, shippedTime, expectedDeliveryDate, expectedDeliveryTimeStart, expectedDeliveryTimeEnd }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+      if (!order.items.some(i => i.sellerEmail === session.email)) {
+        return sendJSON(res, { ok: false, message: 'This order does not contain your products.' });
+      }
+
+      order.tracking = order.tracking || {};
+      if (shippedDate !== undefined) order.tracking.shippedDate = shippedDate;
+      if (shippedTime !== undefined) order.tracking.shippedTime = shippedTime;
+      if (expectedDeliveryDate !== undefined) order.tracking.expectedDeliveryDate = expectedDeliveryDate;
+      if (expectedDeliveryTimeStart !== undefined) order.tracking.expectedDeliveryTimeStart = expectedDeliveryTimeStart;
+      if (expectedDeliveryTimeEnd !== undefined) order.tracking.expectedDeliveryTimeEnd = expectedDeliveryTimeEnd;
+      order.tracking.updatedAt = new Date().toISOString();
+
+      writeJSON('orders.json', orders);
+      sendJSON(res, { ok: true, message: 'Tracking info updated.', tracking: order.tracking });
+    });
+    return;
+  }
+
+  // ---------- CUSTOMER: REPORT AN ORDER ----------
+  if (req.method === 'POST' && req.url === '/api/report-order') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(({ orderId, reason, details }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId && o.customerEmail === session.email);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+      if (!reason) return sendJSON(res, { ok: false, message: 'Please choose a reason for the report.' });
+
+      const disputes = readJSON('disputes.json');
+      const alreadyOpen = disputes.some(d => d.orderId === orderId && d.status !== 'Resolved');
+      if (alreadyOpen) {
+        return sendJSON(res, { ok: false, message: 'You already have an open report for this order.' });
+      }
+
+      const dispute = {
+        id: Date.now(),
+        orderId,
+        customerEmail: session.email,
+        sellerEmails: [...new Set(order.items.map(i => i.sellerEmail))],
+        reason,
+        details: details || '',
+        status: 'Open',
+        date: new Date().toISOString()
+      };
+      disputes.push(dispute);
+      writeJSON('disputes.json', disputes);
+      order.disputed = true;
+      writeJSON('orders.json', orders);
+
+      notifyAdmin(`SellHub: New dispute opened on order #${order.id}. Reason: ${reason}. Review it in the admin dashboard.`);
+
+      sendJSON(res, { ok: true, message: 'Your report has been submitted. Our team will review it.', dispute });
+    });
+    return;
+  }
+
+  // ---------- SELLER WALLET ----------
+  if (req.method === 'GET' && req.url === '/api/seller/wallet') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === session.email);
+    if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    return sendJSON(res, {
+      ok: true,
+      balance: seller.walletBalance || 0,
+      transactions: seller.transactions || []
+    });
+  }
+
+  // Lets the seller see any warnings an admin has sent them, so they aren't
+  // only relying on email (which can be missed or land in spam).
+  if (req.method === 'GET' && req.url === '/api/seller/warnings') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === session.email);
+    if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    return sendJSON(res, { ok: true, warnings: (seller.warnings || []).slice().reverse() });
+  }
+
+  // Lets the seller see reminders (and anything else routed this way in the
+  // future) directly in-app, rather than relying only on the email.
+  if (req.method === 'GET' && req.url === '/api/seller/notifications') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const notifications = readJSON('seller-notifications.json').filter(n => n.sellerEmail === session.email);
+    return sendJSON(res, { ok: true, notifications });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/notifications/mark-read') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ notificationId }) => {
+      const notifications = readJSON('seller-notifications.json');
+      let changed = false;
+      notifications.forEach(n => {
+        if (n.sellerEmail !== session.email) return;
+        if (notificationId && n.id !== notificationId) return;
+        if (!n.read) { n.read = true; changed = true; }
+      });
+      if (changed) writeJSON('seller-notifications.json', notifications);
+      sendJSON(res, { ok: true });
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/seller/fee-info') {
+    const { sellerWithdrawalFeePercent } = getSettings();
+    return sendJSON(res, { ok: true, sellerWithdrawalFeePercent });
+  }
+
+  // ---------- BANKS (used by both seller and admin withdrawal forms) ----------
+  if (req.method === 'GET' && req.url === '/api/banks') {
+    const session = requireAuth(req, res, null);
+    if (!session) return;
+    getBankList()
+      .then(banks => sendJSON(res, { ok: true, banks }))
+      .catch(err => sendJSON(res, { ok: false, message: 'Could not load the bank list: ' + err.message }));
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/resolve-account') {
+    const session = requireAuth(req, res, null);
+    if (!session) return;
+    readBody(req).then(({ bankCode, accountNumber }) => {
+      if (!bankCode || !accountNumber) return sendJSON(res, { ok: false, message: 'Select a bank and enter the account number.' });
+      resolveBankAccount(accountNumber, bankCode)
+        .then(accountName => sendJSON(res, { ok: true, accountName }))
+        .catch(err => sendJSON(res, { ok: false, message: err.message || 'Could not verify that account.' }));
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/seller/withdraw') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ amount, bank, bankCode, accountNumber, accountName }) => {
+      amount = Number(amount);
+      if (!amount || amount <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid amount.' });
+      if (!bank || !bankCode || !accountNumber || !accountName) {
+        return sendJSON(res, { ok: false, message: 'Please select your bank and verify your account before withdrawing.' });
+      }
+
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      const { sellerWithdrawalFeePercent } = getSettings();
+      const fee = Math.round(amount * (sellerWithdrawalFeePercent / 100));
+      const netAmount = amount - fee;
+
+      if ((seller.walletBalance || 0) < amount) {
+        return sendJSON(res, { ok: false, message: 'Insufficient wallet balance.' });
+      }
+
+      // Deduct immediately so the same funds can't be withdrawn twice while
+      // this request is pending review. Once an admin approves it, SellHub
+      // sends the real money automatically via Paystack Transfers — see
+      // /api/admin/withdrawals/decide and the transfer.* webhook handling.
+      seller.walletBalance -= amount;
+      seller.transactions = seller.transactions || [];
+      seller.transactions.unshift({
+        type: 'withdrawal', amount, fee, netAmount, status: 'Pending', date: new Date().toISOString()
+      });
+      writeJSON('sellers.json', sellers);
+
+      const withdrawals = readJSON('withdrawals.json');
+      const withdrawal = {
+        id: Date.now(),
+        sellerEmail: session.email,
+        storeName: seller.businessName,
+        amount, fee, netAmount,
+        bank, bankCode, accountNumber, accountName,
+        status: 'Pending',
+        date: new Date().toISOString()
+      };
+      withdrawals.push(withdrawal);
+      writeJSON('withdrawals.json', withdrawals);
+
+      notifyAdmin(`SellHub: New withdrawal request from ${seller.businessName || seller.fullName || seller.email} for ₦${amount.toLocaleString()}. Review it in the admin dashboard.`);
+
+      sendJSON(res, {
+        ok: true,
+        message: 'Withdrawal request submitted — it will be reviewed before payout.',
+        balance: seller.walletBalance,
+        withdrawal
+      });
+    });
+    return;
+  }
+
+  // ---------- REVIEWS ----------
+  if (req.method === 'GET' && req.url.startsWith('/api/reviews')) {
+    const productId = Number(req.url.split('productId=')[1]);
+    const reviews = readJSON('reviews.json').filter(r => r.productId === productId);
+    return sendJSON(res, { ok: true, reviews });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/review') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(({ orderId, productId, rating, text }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId && o.customerEmail === session.email);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+      if (order.status !== 'Delivered') return sendJSON(res, { ok: false, message: 'You can only review items after delivery.' });
+      if (!order.items.some(i => i.id === productId)) return sendJSON(res, { ok: false, message: 'This product was not in that order.' });
+
+      const reviews = readJSON('reviews.json');
+      if (reviews.some(r => r.orderId === orderId && r.productId === productId && r.customerEmail === session.email)) {
+        return sendJSON(res, { ok: false, message: 'You already reviewed this product for this order.' });
+      }
+
+      const customers = readJSON('customers.json');
+      const customer = customers.find(c => c.email === session.email);
+
+      reviews.push({
+        productId, orderId, customerEmail: session.email,
+        customerName: customer ? customer.fullName : 'SellHub Customer',
+        rating: Number(rating), text,
+        verifiedPurchase: true,
+        date: new Date().toISOString()
+      });
+      writeJSON('reviews.json', reviews);
+      sendJSON(res, { ok: true, message: 'Thanks for your review!' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/remind-seller') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(async ({ orderId }) => {
+      const orders = readJSON('orders.json');
+      const order = orders.find(o => o.id === orderId && o.customerEmail === session.email);
+      if (!order) return sendJSON(res, { ok: false, message: 'Order not found.' });
+
+      const sellers = readJSON('sellers.json');
+      const sellerEmails = [...new Set(order.items.map(i => i.sellerEmail))];
+      for (const sellerEmail of sellerEmails) {
+        await sendEmail(
+          sellerEmail,
+          `Delivery reminder — Order #${order.id}`,
+          `<p>A customer (${order.fullName}) is checking on the delivery status of their order placed on ${new Date(order.date).toLocaleDateString()}.</p>`
+        );
+        createSellerNotification(
+          sellerEmail, order.id, 'Reminder',
+          'Delivery reminder',
+          `${order.fullName || 'A customer'} is checking on order #${order.id}.`
+        );
+        const seller = sellers.find(s => s.email === sellerEmail);
+        const sellerPhone = seller && (seller.whatsappNumber || seller.businessPhone);
+        if (sellerPhone) {
+          await sendWhatsApp(
+            sellerPhone,
+            `SellHub: ${order.fullName || 'A customer'} is checking on order #${order.id}. Please update them soon.`
+          );
+        }
+      }
+      order.reminders.push(new Date().toISOString());
+      writeJSON('orders.json', orders);
+      sendJSON(res, { ok: true, message: 'Reminder sent to the seller!' });
+    });
+    return;
+  }
+
+  // ---------- CUSTOMER SIGNUP ----------
+  if (req.method === 'POST' && req.url === '/api/signup') {
+    readBody(req).then(async (formData) => {
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+      if (customers.some(c => c.email === formData.email)) {
+        return sendJSON(res, { ok: false, message: 'This email is already registered as a customer.' });
+      }
+      if (sellers.some(s => s.email === formData.email)) {
+        return sendJSON(res, { ok: false, message: 'This email is already used for a seller account. Please use a different email for your customer account.' });
+      }
+      const code = crypto.randomInt(100000, 999999).toString();
+      pendingSignups[formData.email] = { code, formData };
+      try {
+        await sendOTPEmail(formData.email, code);
+        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
+      } catch (err) {
+        console.log('ERROR:', err.message);
+        sendJSON(res, { ok: false, message: 'Could not send email.' });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/verify-signup') {
+    readBody(req).then(async ({ email, code }) => {
+      const pending = pendingSignups[email];
+      if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
+      const customers = readJSON('customers.json');
+      const hashedPassword = await bcrypt.hash(pending.formData.password, 10);
+      customers.push({ ...pending.formData, password: hashedPassword });
+      writeJSON('customers.json', customers);
+      delete pendingSignups[email];
+      const token = createSession(pending.formData.email, 'customer');
+      sendJSON(res, {
+        ok: true, message: '✅ Account created!', token,
+        account: { fullName: pending.formData.fullName, email: pending.formData.email }
+      });
+    });
+    return;
+  }
+
+  // ---------- SELLER SIGNUP ----------
+  if (req.method === 'POST' && req.url === '/api/seller-signup') {
+    readBody(req).then(async (formData) => {
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+      if (sellers.some(s => s.email === formData.email)) {
+        return sendJSON(res, { ok: false, message: 'This email is already registered as a seller.' });
+      }
+      if (customers.some(c => c.email === formData.email)) {
+        return sendJSON(res, { ok: false, message: 'This email is already used for a customer account. Please use a different email for your seller account.' });
+      }
+      const code = crypto.randomInt(100000, 999999).toString();
+      pendingSellerSignups[formData.email] = { code, formData };
+      try {
+        await sendOTPEmail(formData.email, code);
+        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
+      } catch (err) {
+        console.log('ERROR:', err.message);
+        sendJSON(res, { ok: false, message: 'Could not send email.' });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/verify-seller-signup') {
+    readBody(req).then(async ({ email, code }) => {
+      const pending = pendingSellerSignups[email];
+      if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
+      const sellers = readJSON('sellers.json');
+      const hashedPassword = await bcrypt.hash(pending.formData.password, 10);
+      sellers.push({ ...pending.formData, password: hashedPassword });
+      writeJSON('sellers.json', sellers);
+      delete pendingSellerSignups[email];
+      const token = createSession(pending.formData.email, 'seller');
+      sendJSON(res, {
+        ok: true, message: '✅ Store created!', token,
+        account: { fullName: pending.formData.fullName, businessName: pending.formData.businessName, email: pending.formData.email }
+      });
+    });
+    return;
+  }
+
+  // ---------- GOOGLE SIGN-IN ----------
+  // One endpoint for both "Sign in with Google" and "Sign up with Google".
+  // accountType tells us which table to create a NEW account in if one
+  // doesn't exist yet; it's ignored if the email already has an account,
+  // since we log them into whichever account actually exists.
+  if (req.method === 'POST' && req.url === '/api/google-auth') {
+    readBody(req).then(async ({ credential, accountType }) => {
+      let googleUser;
+      try {
+        googleUser = await verifyGoogleToken(credential);
+      } catch (err) {
+        return sendJSON(res, { ok: false, message: 'Could not verify Google sign-in. Please try again.' });
+      }
+
+      const { email, fullName } = googleUser;
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+
+      const existingCustomer = customers.find(c => c.email === email);
+      const existingSeller = sellers.find(s => s.email === email);
+
+      // Case 1: account already exists — log them straight in, regardless
+      // of which button they clicked, since the account itself decides.
+      if (existingCustomer) {
+        const token = createSession(existingCustomer.email, 'customer');
+        return sendJSON(res, {
+          ok: true, accountType: 'customer', token,
+          message: `Welcome back, ${existingCustomer.fullName}!`,
+          account: { fullName: existingCustomer.fullName, email: existingCustomer.email }
+        });
+      }
+      if (existingSeller) {
+        if (existingSeller.suspended) {
+          return sendJSON(res, { ok: false, message: 'Your seller account has been suspended. Contact support for details.' });
+        }
+        const token = createSession(existingSeller.email, 'seller');
+        return sendJSON(res, {
+          ok: true, accountType: 'seller', token,
+          message: `Welcome back, ${existingSeller.fullName}!`,
+          account: { fullName: existingSeller.fullName, businessName: existingSeller.businessName, email: existingSeller.email }
+        });
+      }
+
+      // Case 2: no account yet — create one. Google users skip the OTP
+      // step (Google already verified the email) and get a random,
+      // unusable password on the account, since they'll only ever log
+      // in through the Google button.
+      const randomPassword = crypto.randomBytes(24).toString('hex');
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      if (accountType === 'seller') {
+        const newSeller = {
+          fullName,
+          businessName: `${fullName}'s Store`,
+          email,
+          password: hashedPassword,
+          walletBalance: 0,
+          transactions: []
+        };
+        sellers.push(newSeller);
+        writeJSON('sellers.json', sellers);
+        const token = createSession(email, 'seller');
+        return sendJSON(res, {
+          ok: true, accountType: 'seller', token,
+          message: '✅ Store created!',
+          account: { fullName, businessName: newSeller.businessName, email }
+        });
+      }
+
+      const newCustomer = { fullName, email, password: hashedPassword };
+      customers.push(newCustomer);
+      writeJSON('customers.json', customers);
+      const token = createSession(email, 'customer');
+      return sendJSON(res, {
+        ok: true, accountType: 'customer', token,
+        message: '✅ Account created!',
+        account: { fullName, email }
+      });
+    }).catch(() => sendJSON(res, { ok: false, message: 'Something went wrong with Google sign-in.' }));
+    return;
+  }
+
+  // ---------- LOGIN ----------
+  if (req.method === 'POST' && req.url === '/api/login') {
+    readBody(req).then(async ({ email, password }) => {
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+
+      const customerMatch = customers.find(c => c.email === email);
+      if (customerMatch && await bcrypt.compare(password, customerMatch.password)) {
+        const token = createSession(customerMatch.email, 'customer');
+        return sendJSON(res, {
+          ok: true, accountType: 'customer', token,
+          message: `Welcome back, ${customerMatch.fullName}!`,
+          account: { fullName: customerMatch.fullName, email: customerMatch.email }
+        });
+      }
+      const sellerMatch = sellers.find(s => s.email === email);
+      if (sellerMatch && await bcrypt.compare(password, sellerMatch.password)) {
+        if (sellerMatch.suspended) {
+          return sendJSON(res, { ok: false, message: 'Your seller account has been suspended. Contact support for details.' });
+        }
+        const token = createSession(sellerMatch.email, 'seller');
+        return sendJSON(res, {
+          ok: true, accountType: 'seller', token,
+          message: `Welcome back, ${sellerMatch.fullName}!`,
+          account: { fullName: sellerMatch.fullName, businessName: sellerMatch.businessName, email: sellerMatch.email }
+        });
+      }
+      sendJSON(res, { ok: false, message: 'Incorrect email or password.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/logout') {
+    const header = req.headers['authorization'] || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (token) delete sessions[token];
+    sendJSON(res, { ok: true });
+    return;
+  }
+
+  // ---------- FORGOT PASSWORD ----------
+  if (req.method === 'POST' && req.url === '/api/request-reset') {
+    readBody(req).then(async ({ email }) => {
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+      if (!customers.some(c => c.email === email) && !sellers.some(s => s.email === email)) {
+        return sendJSON(res, { ok: false, message: 'No account found with that email.' });
+      }
+      const code = crypto.randomInt(100000, 999999).toString();
+      resetCodes[email] = code;
+      try {
+        await sendOTPEmail(email, code);
+        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
+      } catch (err) {
+        console.log('ERROR:', err.message);
+        sendJSON(res, { ok: false, message: 'Could not send email.' });
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/reset-password') {
+    readBody(req).then(async ({ email, code, newPassword }) => {
+      if (resetCodes[email] !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
+      const customers = readJSON('customers.json');
+      const sellers = readJSON('sellers.json');
+      const customer = customers.find(c => c.email === email);
+      const seller = sellers.find(s => s.email === email);
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      if (customer) { customer.password = hashedPassword; writeJSON('customers.json', customers); }
+      if (seller) { seller.password = hashedPassword; writeJSON('sellers.json', sellers); }
+      delete resetCodes[email];
+      sendJSON(res, { ok: true, message: '✅ Password updated! You can now log in with it.' });
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end('Not found');
+});
+
+server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
