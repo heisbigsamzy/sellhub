@@ -1,4 +1,10 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Render's network doesn't support outgoing IPv6, but Node tries IPv6 first
+// by default. That makes every connection to Gmail's SMTP server fail with
+// "ENETUNREACH" before it even reaches Gmail. Forcing IPv4 first fixes it.
+if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 
 // Credentials now come from environment variables — never hardcode them here.
 // Create a .env file (see .env.example) with GMAIL_ADDRESS and GMAIL_APP_PASSWORD.
@@ -16,6 +22,7 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
+  family: 4, // force IPv4 — see note above about Render + IPv6
   auth: { user: GMAIL_ADDRESS, pass: GMAIL_APP_PASSWORD },
   connectionTimeout: 20000,
   greetingTimeout: 20000,
