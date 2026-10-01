@@ -698,6 +698,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Wipes old/demo withdrawal records so the Platform Wallet balance stops
+  // counting their fees. Does not touch real orders, products, or seller
+  // accounts — only the withdrawal request list. Gated behind the same PIN
+  // as moving real money, since it changes the revenue the dashboard shows.
+  if (req.method === 'POST' && req.url === '/api/admin/withdrawals/clear-demo') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ pin }) => {
+      const { withdrawalPin } = getSettings();
+      if (!pin || pin !== withdrawalPin) {
+        return sendJSON(res, { ok: false, message: 'Incorrect withdrawal PIN.' });
+      }
+      writeJSON('withdrawals.json', []);
+      sendJSON(res, { ok: true, message: 'Cleared. Seller withdrawal history and the Platform Wallet are back to zero.' });
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/admin/withdraw') {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
