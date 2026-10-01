@@ -2028,13 +2028,13 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       pendingSignups[formData.email] = { code, formData };
-      try {
-        await sendOTPEmail(formData.email, code);
-        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
-      } catch (err) {
+      // Respond immediately — don't make the person wait on the real Gmail
+      // connection, which can take a couple of seconds. The email is sent
+      // right after, in the background.
+      sendJSON(res, { ok: true, message: 'Code sent! Check your email — it may take a few seconds to arrive.' });
+      sendOTPEmail(formData.email, code).catch(err => {
         console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
-        sendJSON(res, { ok: false, message: 'Could not send email.' });
-      }
+      });
     });
     return;
   }
@@ -2070,13 +2070,11 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       pendingSellerSignups[formData.email] = { code, formData };
-      try {
-        await sendOTPEmail(formData.email, code);
-        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
-      } catch (err) {
+      // Respond immediately — see note in /api/signup above.
+      sendJSON(res, { ok: true, message: 'Code sent! Check your email — it may take a few seconds to arrive.' });
+      sendOTPEmail(formData.email, code).catch(err => {
         console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
-        sendJSON(res, { ok: false, message: 'Could not send email.' });
-      }
+      });
     });
     return;
   }
@@ -2231,13 +2229,11 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       resetCodes[email] = code;
-      try {
-        await sendOTPEmail(email, code);
-        sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
-      } catch (err) {
+      // Respond immediately — see note in /api/signup above.
+      sendJSON(res, { ok: true, message: 'Code sent! Check your email — it may take a few seconds to arrive.' });
+      sendOTPEmail(email, code).catch(err => {
         console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
-        sendJSON(res, { ok: false, message: 'Could not send email.' });
-      }
+      });
     });
     return;
   }
