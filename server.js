@@ -1,10 +1,43 @@
 const http = require('http');
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { sendOTPEmail, sendEmail } = require('./mailer');
 const { verifyGoogleToken } = require('./googleAuth');
 const { sendWhatsApp } = require('./whatsapp');
+
+// ---------- DATA STORAGE ----------
+// Render's free tier has no permanent disk: every time the service redeploys,
+// restarts, OR just goes idle and spins back down, anything written to the
+// local filesystem is wiped. Setting DATA_DIR to a path on a Render
+// *persistent disk* (Render dashboard → service → Disks) makes every wallet
+// balance, order and withdrawal survive all of that. Without DATA_DIR set,
+// behavior is unchanged — files live next to server.js, same as before.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DATA_FILES = [
+  'admin-withdrawals.json', 'customers.json', 'disputes.json', 'notifications.json',
+  'orders.json', 'payments.json', 'products.json', 'reviews.json',
+  'seller-notifications.json', 'sellers.json', 'settings.json', 'withdrawals.json'
+];
+// The very first time a persistent disk is attached, it's empty. Seed it
+// once from whatever's already sitting next to server.js (your current
+// sellers/products/settings) so the site doesn't start from zero — after
+// that, the disk's own copies are always used and never overwritten here.
+if (DATA_DIR !== __dirname) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const file of DATA_FILES) {
+    const dest = path.join(DATA_DIR, file);
+    const src = path.join(__dirname, file);
+    if (!fs.existsSync(dest) && fs.existsSync(src)) {
+      fs.copyFileSync(src, dest);
+      console.log('Seeded', file, 'onto the persistent disk.');
+    }
+  }
+  console.log('💾 Using persistent storage at', DATA_DIR);
+} else {
+  console.warn('⚠️  No DATA_DIR set — data lives on the temporary server disk and WILL be lost on every restart/redeploy/idle spin-down. Set DATA_DIR to a Render persistent disk path to fix this.');
+}
 
 const PORT = 3000;
 const pendingSignups = {};
@@ -513,8 +546,8 @@ function readBody(req) {
     });
   });
 }
-function readJSON(file) { return JSON.parse(fs.readFileSync(file, 'utf-8')); }
-function writeJSON(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+function readJSON(file) { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')); }
+function writeJSON(file, data) { fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2)); }
 function serveFile(res, fileName) {
   fs.readFile(fileName, (err, content) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
@@ -754,7 +787,7 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
     readBody(req).then(async ({ id, decision }) => {
-      if (!['Approved', 'Rejected'].includes(decision)) {
+      if (!['Approved', 'Rejected', 'ApprovedManual'].includes(decision)) {
         return sendJSON(res, { ok: false, message: 'Invalid decision.' });
       }
       const withdrawals = readJSON('withdrawals.json');
@@ -777,6 +810,25 @@ const server = http.createServer((req, res) => {
           writeJSON('sellers.json', sellers);
         }
         return sendJSON(res, { ok: true, message: 'Withdrawal rejected and refunded to the seller\'s wallet.' });
+      }
+
+      // Fallback for while Paystack Transfers isn't available yet (e.g. a
+      // Starter Business account that hasn't upgraded to Registered Business).
+      // This just marks it paid — YOU still have to actually send the money
+      // yourself through your own bank or Paystack dashboard.
+      if (decision === 'ApprovedManual') {
+        withdrawal.status = 'Approved';
+        withdrawal.paidManually = true;
+        writeJSON('withdrawals.json', withdrawals);
+
+        const sellers = readJSON('sellers.json');
+        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+        if (seller) {
+          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+          if (txn) txn.status = 'Approved';
+          writeJSON('sellers.json', sellers);
+        }
+        return sendJSON(res, { ok: true, message: 'Marked as paid. Remember: SellHub did NOT send any money — make sure you actually transferred it yourself.' });
       }
 
       // Approving sends the real payout via Paystack right now, rather than
