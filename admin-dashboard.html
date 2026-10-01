@@ -150,6 +150,10 @@
           </div>
         </div>
 
+        <div style="background:#FFF3E0; border-radius:14px; padding:14px 16px; margin-bottom:18px; font-size:12.5px; color:#8A5A00;">
+          <b>Only withdraw up to your Platform Revenue above.</b> Your real bank account also holds money that belongs to sellers who haven't withdrawn yet (see "Owed to Sellers" above) — that money is NOT yours to spend, even though it's sitting in the same account.
+        </div>
+
         <div class="withdraw-form">
           <h3 style="font-size:16px; margin-bottom:4px;">Withdraw to your bank</h3>
           <p style="font-size:12.5px; color:var(--gray-600); margin:4px 0 0;">This sends the money straight to your bank via Paystack — make sure your Paystack balance can cover it.</p>
@@ -299,7 +303,8 @@
       <div class="stat-card"><div class="lbl">Total Sellers</div><div class="val">${r.totalSellers}</div></div>
       <div class="stat-card"><div class="lbl">Total Customers</div><div class="val">${r.totalCustomers}</div></div>
       <div class="stat-card"><div class="lbl">Total Orders</div><div class="val">${r.totalOrders}</div></div>
-      <div class="stat-card"><div class="lbl">Platform Revenue</div><div class="val">${money(r.totalRevenue)}</div></div>
+      <div class="stat-card"><div class="lbl">Platform Revenue (yours)</div><div class="val">${money(r.totalRevenue)}</div></div>
+      <div class="stat-card alert"><div class="lbl">Owed to Sellers (NOT yours)</div><div class="val">${money(r.totalOwedToSellers)}</div></div>
       <div class="stat-card ${r.pendingWithdrawals > 0 ? 'alert' : ''}"><div class="lbl">Pending Withdrawals</div><div class="val">${r.pendingWithdrawals}</div></div>
       <div class="stat-card ${r.pendingVerifications > 0 ? 'alert' : ''}"><div class="lbl">Pending Verifications</div><div class="val">${r.pendingVerifications}</div></div>
       <div class="stat-card ${r.openDisputes > 0 ? 'alert' : ''}"><div class="lbl">Open Disputes</div><div class="val">${r.openDisputes}</div></div>
