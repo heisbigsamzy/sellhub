@@ -1,63 +1,70 @@
-// Email sending — via Mailjet (https://mailjet.com), reached over plain
-// HTTPS. SMTP2GO's signup page kept erroring, so this uses Mailjet instead
-// — same idea: a dedicated email service, verify one sender email address
-// (no domain needed), then send to anyone.
+// Email sending — via EmailJS (https://emailjs.com), reached over plain
+// HTTPS. This connects to your own real Gmail account (via a simple
+// "Connect with Google" click in their dashboard, not a manual OAuth setup)
+// and sends through it — no business review process like some other
+// services, since you're just authorizing your own existing Gmail account.
 //
 // One-time setup:
-//   1. Create a free account at https://mailjet.com
-//   2. Go to My Account -> Sender addresses & domains -> Add a sender
-//      address -> enter heisbigsamzy@gmail.com -> Mailjet emails you a
-//      confirmation link, click it.
-//   3. Go to Account Settings -> API Key Management -> copy your
-//      "API Key" and "Secret Key".
-//   4. In Render -> Environment, add:
-//        MAILJET_API_KEY    = the API Key from step 3
-//        MAILJET_SECRET_KEY = the Secret Key from step 3
-//        SENDER_EMAIL       = the exact address verified in step 2
+//   1. Create a free account at https://www.emailjs.com (just name + email,
+//      no credit card, no business verification).
+//   2. Dashboard -> Email Services -> Add New Service -> choose Gmail ->
+//      click "Connect Account" -> sign in with heisbigsamzy@gmail.com and
+//      approve. Copy the "Service ID" shown.
+//   3. Dashboard -> Email Templates -> Create New Template. Set:
+//        Subject: {{subject}}
+//        Content: {{message}}
+//      (just those two placeholders, nothing else needed). Save, then copy
+//      the "Template ID".
+//      Also set the template's "To email" field to {{to_email}}.
+//   4. Dashboard -> Account -> General -> copy your "Public Key".
+//      Dashboard -> Account -> Security -> copy your "Private Key", and
+//      turn ON "Allow EmailJS API for non-browser applications" (this app
+//      is a server, not a browser, so this must be switched on).
+//   5. In Render -> Environment, add:
+//        EMAILJS_SERVICE_ID  = Service ID from step 2
+//        EMAILJS_TEMPLATE_ID = Template ID from step 3
+//        EMAILJS_PUBLIC_KEY  = Public Key from step 4
+//        EMAILJS_PRIVATE_KEY = Private Key from step 4
 
-const MAILJET_API_KEY = process.env.MAILJET_API_KEY;
-const MAILJET_SECRET_KEY = process.env.MAILJET_SECRET_KEY;
-const SENDER_EMAIL = process.env.SENDER_EMAIL;
+const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
+const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
 
-if (!MAILJET_API_KEY || !MAILJET_SECRET_KEY || !SENDER_EMAIL) {
+if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) {
   console.warn(
-    '⚠️  MAILJET_API_KEY / MAILJET_SECRET_KEY / SENDER_EMAIL are not set. Emails will fail to send.\n' +
-    '   Sign up free at https://mailjet.com, verify a sender email address,\n' +
-    '   create an API key, and add all three to Render -> Environment.'
+    '⚠️  EmailJS is not fully configured. Emails will fail to send.\n' +
+    '   Needs EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY and\n' +
+    '   EMAILJS_PRIVATE_KEY set in Render -> Environment. See mailer.js for setup steps.'
   );
 }
 
-async function sendViaMailjet(toEmail, subject, html) {
-  const basicAuth = Buffer.from(`${MAILJET_API_KEY}:${MAILJET_SECRET_KEY}`).toString('base64');
-
-  const res = await fetch('https://api.mailjet.com/v3.1/send', {
+async function sendViaEmailJs(toEmail, subject, html) {
+  const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Basic ${basicAuth}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      Messages: [
-        {
-          From: { Email: SENDER_EMAIL, Name: 'SellHub' },
-          To: [{ Email: toEmail }],
-          Subject: subject,
-          HTMLPart: html,
-        },
-      ],
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id: EMAILJS_PUBLIC_KEY,
+      accessToken: EMAILJS_PRIVATE_KEY,
+      template_params: {
+        to_email: toEmail,
+        subject: subject,
+        message: html,
+      },
     }),
   });
 
-  const data = await res.json();
-  const failed = !res.ok || (data.Messages && data.Messages[0] && data.Messages[0].Status !== 'success');
-  if (failed) {
-    throw new Error(`Mailjet API error (${res.status}): ${JSON.stringify(data)}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`EmailJS API error (${res.status}): ${text}`);
   }
-  return data;
+  return res.text();
 }
 
 function sendOTPEmail(toEmail, code) {
-  return sendViaMailjet(
+  return sendViaEmailJs(
     toEmail,
     'Your SellHub verification code',
     `<p>Your SellHub verification code is:</p><h1 style="letter-spacing:4px;">${code}</h1><p>This code expires in 10 minutes.</p>`
@@ -65,7 +72,7 @@ function sendOTPEmail(toEmail, code) {
 }
 
 function sendEmail(toEmail, subject, html) {
-  return sendViaMailjet(toEmail, subject, html);
+  return sendViaEmailJs(toEmail, subject, html);
 }
 
 module.exports = { sendOTPEmail, sendEmail };
