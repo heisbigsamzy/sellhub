@@ -152,16 +152,16 @@
 
         <div class="withdraw-form">
           <h3 style="font-size:16px; margin-bottom:4px;">Withdraw to your bank</h3>
-          <p style="font-size:12.5px; color:var(--gray-600); margin:4px 0 0;">This records the withdrawal here — you'll still need to move the money yourself through your bank.</p>
+          <p style="font-size:12.5px; color:var(--gray-600); margin:4px 0 0;">This sends the money straight to your bank via Paystack — make sure your Paystack balance can cover it.</p>
           <label>Amount</label>
           <input id="aw_amount" type="number" placeholder="e.g. 50000">
           <label>Bank name</label>
           <div id="aw_bankWrap"></div>
-          <input id="aw_bankOther" placeholder="Type your bank's name" style="display:none;">
           <label>Account number</label>
-          <input id="aw_accountNumber" placeholder="10-digit account number">
+          <input id="aw_accountNumber" placeholder="10-digit account number" inputmode="numeric" maxlength="10">
           <label>Account name</label>
-          <input id="aw_accountName" placeholder="Name on the account">
+          <input id="aw_accountName" placeholder="Verified automatically from your bank" readonly>
+          <div id="aw_verifyMsg" style="font-size:12px; font-weight:700; margin-top:6px; min-height:16px;"></div>
           <label>Withdrawal PIN</label>
           <input id="aw_pin" type="password" placeholder="Enter your withdrawal PIN" inputmode="numeric" maxlength="6">
           <button class="btn primary" style="margin-top:20px;" onclick="submitAdminWithdraw()">Withdraw</button>
@@ -201,32 +201,65 @@
 </div>
 
 <script>
-  const NIGERIAN_BANKS = [
-    "Access Bank","ALAT by Wema","Citibank Nigeria","Ecobank Nigeria","Fidelity Bank",
-    "First Bank of Nigeria","First City Monument Bank (FCMB)","Globus Bank","Guaranty Trust Bank (GTBank)",
-    "Heritage Bank","Jaiz Bank","Keystone Bank","Kuda Bank","Lotus Bank","Moniepoint MFB",
-    "OPay (Paycom)","PalmPay","Parallex Bank","Polaris Bank","PremiumTrust Bank","Providus Bank",
-    "Stanbic IBTC Bank","Standard Chartered Bank","Sterling Bank","SunTrust Bank","Taj Bank",
-    "Titan Trust Bank","Union Bank of Nigeria","United Bank for Africa (UBA)","Unity Bank",
-    "Wema Bank","Zenith Bank","Other (type below)"
-  ];
-  function renderBankSelect(selectId) {
+  // Bank list comes live from Paystack (name + the code Paystack needs to
+  // actually send money), not a hand-typed list.
+  let bankListPromise = null;
+  function loadBankList() {
+    if (!bankListPromise) {
+      bankListPromise = authedFetch('/api/banks').then(r => r.json()).then(r => r.ok ? r.banks : []);
+    }
+    return bankListPromise;
+  }
+  async function renderBankSelect(selectId) {
+    const banks = await loadBankList();
     return `<select id="${selectId}">
       <option value="">Select your bank…</option>
-      ${NIGERIAN_BANKS.map(b => `<option value="${b}">${b}</option>`).join('')}
+      ${banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('')}
     </select>`;
   }
-  function initBankSelect(wrapId, selectId, otherId) {
-    document.getElementById(wrapId).innerHTML = renderBankSelect(selectId);
-    document.getElementById(selectId).addEventListener('change', function () {
-      document.getElementById(otherId).style.display = this.value === 'Other (type below)' ? 'block' : 'none';
-    });
+  async function initBankSelect(wrapId, selectId, onChange) {
+    document.getElementById(wrapId).innerHTML = await renderBankSelect(selectId);
+    if (onChange) document.getElementById(selectId).addEventListener('change', onChange);
   }
-  function bankValue(selectId, otherId) {
-    const sel = document.getElementById(selectId).value;
-    return sel === 'Other (type below)' ? document.getElementById(otherId).value.trim() : sel;
+  function bankName(selectId) {
+    const sel = document.getElementById(selectId);
+    const opt = sel.options[sel.selectedIndex];
+    return opt ? opt.textContent : '';
   }
-  window.addEventListener('DOMContentLoaded', () => initBankSelect('aw_bankWrap', 'aw_bank', 'aw_bankOther'));
+
+  // Resolves the account number against the bank and fills in the real name
+  // on file — prevents paying out to a mistyped or wrong account.
+  async function verifyAccount(bankSelectId, acctNumberId, acctNameId, statusId) {
+    const bankCode = document.getElementById(bankSelectId).value;
+    const accountNumber = document.getElementById(acctNumberId).value.trim();
+    const nameField = document.getElementById(acctNameId);
+    const status = document.getElementById(statusId);
+    nameField.value = '';
+    nameField.dataset.verified = '';
+    if (!bankCode || accountNumber.length !== 10) { status.textContent = ''; return; }
+    status.textContent = 'Checking account…';
+    status.style.color = 'var(--gray-600)';
+    try {
+      const res = await authedFetch('/api/resolve-account', { method: 'POST', body: JSON.stringify({ bankCode, accountNumber }) });
+      const r = await res.json();
+      if (r.ok) {
+        nameField.value = r.accountName;
+        nameField.dataset.verified = '1';
+        status.textContent = '✓ Verified: ' + r.accountName;
+        status.style.color = 'var(--green-700)';
+      } else {
+        status.textContent = r.message || 'Could not verify this account.';
+        status.style.color = '#B4232C';
+      }
+    } catch (e) {
+      status.textContent = 'Could not verify this account — check your connection.';
+      status.style.color = '#B4232C';
+    }
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    initBankSelect('aw_bankWrap', 'aw_bank', () => verifyAccount('aw_bank', 'aw_accountNumber', 'aw_accountName', 'aw_verifyMsg'));
+    document.getElementById('aw_accountNumber').addEventListener('blur', () => verifyAccount('aw_bank', 'aw_accountNumber', 'aw_accountName', 'aw_verifyMsg'));
+  });
 
   const authToken = localStorage.getItem('sellhub_admin_token');
   if (!authToken) window.location.href = '/admin-login';
@@ -291,7 +324,7 @@
     list.innerHTML = r.transactions.map(t => `
       <div class="txn-row">
         <div>
-          <div class="txn-type">Withdrawal to ${t.bank} · ${t.accountNumber}</div>
+          <div class="txn-type">Withdrawal to ${t.bank} · ${t.accountNumber} ${t.status && t.status !== 'Approved' ? `<span style="color:${t.status === 'Failed' ? '#B4232C' : 'var(--gray-600)'}; font-weight:700;">(${t.status})</span>` : ''}</div>
           <div class="txn-date">${new Date(t.date).toLocaleString()}</div>
         </div>
         <div class="txn-amount">− ${money(t.amount)}</div>
@@ -300,28 +333,48 @@
   }
 
   async function submitAdminWithdraw(){
+    const msg = document.getElementById('aw_msg');
+    const nameField = document.getElementById('aw_accountName');
+    if (!document.getElementById('aw_bank').value || !nameField.dataset.verified) {
+      msg.textContent = 'Select your bank and enter your account number so we can verify it first.';
+      msg.style.color = '#B4232C';
+      return;
+    }
     const body = {
       amount: document.getElementById('aw_amount').value,
-      bank: bankValue('aw_bank', 'aw_bankOther'),
+      bank: bankName('aw_bank'),
+      bankCode: document.getElementById('aw_bank').value,
       accountNumber: document.getElementById('aw_accountNumber').value,
-      accountName: document.getElementById('aw_accountName').value,
+      accountName: nameField.value,
       pin: document.getElementById('aw_pin').value
     };
     const res = await authedFetch('/api/admin/withdraw', { method: 'POST', body: JSON.stringify(body) });
     const r = await res.json();
-    const msg = document.getElementById('aw_msg');
     msg.textContent = r.message;
     msg.style.color = r.ok ? 'var(--green-700)' : '#B4232C';
     document.getElementById('aw_pin').value = '';
     if (r.ok) {
       document.getElementById('aw_amount').value = '';
       document.getElementById('aw_bank').value = '';
-      document.getElementById('aw_bankOther').value = '';
-      document.getElementById('aw_bankOther').style.display = 'none';
       document.getElementById('aw_accountNumber').value = '';
-      document.getElementById('aw_accountName').value = '';
+      nameField.value = '';
+      nameField.dataset.verified = '';
+      document.getElementById('aw_verifyMsg').textContent = '';
+      if (r.withdrawal && r.withdrawal.needsOtp) {
+        promptOtp(r.withdrawal.transferCode);
+      }
       loadAdminWallet();
     }
+  }
+
+  async function promptOtp(transferCode){
+    const otp = prompt('Paystack sent you an OTP (by SMS/email) to confirm this transfer. Enter it here:');
+    if (!otp) return;
+    const res = await authedFetch('/api/admin/transfers/finalize-otp', { method: 'POST', body: JSON.stringify({ transferCode, otp }) });
+    const r = await res.json();
+    alert(r.message);
+    loadAdminWallet();
+    loadWithdrawals();
   }
 
   async function loadWithdrawals(){
@@ -339,16 +392,21 @@
             <div class="card-title">${w.storeName || w.sellerEmail}</div>
             <div class="card-sub">${w.sellerEmail} · ${new Date(w.date).toLocaleString()}</div>
           </div>
-          <span class="badge ${w.status === 'Pending' ? 'pending' : w.status === 'Approved' ? 'approved' : 'rejected'}">${w.status}</span>
+          <span class="badge ${w.status === 'Pending' ? 'pending' : w.status === 'Processing' ? 'pending' : w.status === 'Approved' ? 'approved' : 'rejected'}">${w.status}</span>
         </div>
         <div class="row"><span>Requested amount</span><span>${money(w.amount)}</span></div>
         <div class="row"><span>Fee</span><span>${money(w.fee)}</span></div>
         <div class="row"><span>Net payout</span><span><b>${money(w.netAmount)}</b></span></div>
         <div class="row"><span>Bank</span><span>${w.bank} · ${w.accountNumber} · ${w.accountName}</span></div>
+        ${w.status === 'Processing' ? `<div class="row" style="color:var(--gray-600);">${w.needsOtp ? 'Waiting on an OTP to finish this transfer.' : 'Sent to Paystack — waiting for confirmation.'}</div>` : ''}
         ${w.status === 'Pending' ? `
         <div class="actions">
-          <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Mark Paid / Approve</button>
+          <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve &amp; Pay</button>
           <button class="btn reject" onclick="decideWithdrawal(${w.id}, 'Rejected')">Reject &amp; Refund</button>
+        </div>` : ''}
+        ${w.status === 'Processing' && w.needsOtp ? `
+        <div class="actions">
+          <button class="btn approve" onclick="promptOtp('${w.transferCode}')">Enter OTP</button>
         </div>` : ''}
       </div>
     `).join('');
@@ -356,9 +414,10 @@
 
   async function decideWithdrawal(id, decision){
     if (decision === 'Rejected' && !confirm('Reject this withdrawal and refund the seller wallet?')) return;
+    if (decision === 'Approved' && !confirm('This will send real money to the seller\'s bank account right now via Paystack. Continue?')) return;
     const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision }) });
     const r = await res.json();
-    if (!r.ok) { alert(r.message); return; }
+    alert(r.message);
     loadWithdrawals();
     loadStats();
   }
