@@ -662,6 +662,11 @@ const server = http.createServer((req, res) => {
     const disputes = readJSON('disputes.json');
 
     const totalRevenue = getPlatformRevenue();
+    // Money sitting in sellers' SellHub wallets that hasn't been withdrawn
+    // yet. It lives in the SAME real bank account as your own platform
+    // revenue — this number is how much of that real balance is NOT yours
+    // to spend, because it's still owed to sellers.
+    const totalOwedToSellers = sellers.reduce((sum, s) => sum + (s.walletBalance || 0), 0);
     const pendingWithdrawals = withdrawals.filter(w => w.status === 'Pending').length;
     const pendingVerifications = sellers.filter(s => {
       const v = s.verification || {};
@@ -675,6 +680,7 @@ const server = http.createServer((req, res) => {
       totalCustomers: customers.length,
       totalOrders: orders.length,
       totalRevenue,
+      totalOwedToSellers,
       pendingWithdrawals,
       pendingVerifications,
       openDisputes
