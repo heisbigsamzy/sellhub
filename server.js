@@ -562,6 +562,7 @@ function sendJSON(res, data, status) {
 
 const pages = {
   '/': 'sellhub-landing.html',
+  '/privacy': 'privacy.html',
   '/signup': 'signup.html',
   '/seller-signup': 'seller-signup.html',
   '/login': 'login.html',
