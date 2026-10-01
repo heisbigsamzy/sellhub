@@ -262,11 +262,11 @@
       <input id="wd_amount" type="number" placeholder="e.g. 20000" oninput="updateFeePreview()">
       <label>Bank name</label>
       <div id="wd_bankWrap"></div>
-      <input id="wd_bankOther" placeholder="Type your bank's name" style="display:none;">
       <label>Account number</label>
-      <input id="wd_accountNumber" placeholder="10-digit account number">
+      <input id="wd_accountNumber" placeholder="10-digit account number" inputmode="numeric" maxlength="10">
       <label>Account name</label>
-      <input id="wd_accountName" placeholder="Name on the account">
+      <input id="wd_accountName" placeholder="Verified automatically from your bank" readonly>
+      <div id="wd_verifyMsg" style="font-size:12px; font-weight:700; margin-top:6px; min-height:16px;"></div>
       <div class="fee-breakdown" id="wd_feeBreakdown">
         <div class="row"><span>Withdrawal amount</span><span>₦0</span></div>
         <div class="row"><span>Withdrawal fee</span><span>₦0</span></div>
@@ -358,32 +358,67 @@
 </div>
 
 <script>
-  const NIGERIAN_BANKS = [
-    "Access Bank","ALAT by Wema","Citibank Nigeria","Ecobank Nigeria","Fidelity Bank",
-    "First Bank of Nigeria","First City Monument Bank (FCMB)","Globus Bank","Guaranty Trust Bank (GTBank)",
-    "Heritage Bank","Jaiz Bank","Keystone Bank","Kuda Bank","Lotus Bank","Moniepoint MFB",
-    "OPay (Paycom)","PalmPay","Parallex Bank","Polaris Bank","PremiumTrust Bank","Providus Bank",
-    "Stanbic IBTC Bank","Standard Chartered Bank","Sterling Bank","SunTrust Bank","Taj Bank",
-    "Titan Trust Bank","Union Bank of Nigeria","United Bank for Africa (UBA)","Unity Bank",
-    "Wema Bank","Zenith Bank","Other (type below)"
-  ];
-  function renderBankSelect(selectId) {
+  // Bank list comes live from Paystack (name + the code Paystack needs to
+  // actually send money), not a hand-typed list, so a withdrawal can never
+  // be submitted against a bank that can't be paid automatically.
+  let bankListPromise = null;
+  function loadBankList() {
+    if (!bankListPromise) {
+      bankListPromise = authedFetch('/api/banks').then(r => r.json()).then(r => r.ok ? r.banks : []);
+    }
+    return bankListPromise;
+  }
+  async function renderBankSelect(selectId) {
+    const banks = await loadBankList();
     return `<select id="${selectId}">
       <option value="">Select your bank…</option>
-      ${NIGERIAN_BANKS.map(b => `<option value="${b}">${b}</option>`).join('')}
+      ${banks.map(b => `<option value="${b.code}">${b.name}</option>`).join('')}
     </select>`;
   }
-  function initBankSelect(wrapId, selectId, otherId) {
-    document.getElementById(wrapId).innerHTML = renderBankSelect(selectId);
-    document.getElementById(selectId).addEventListener('change', function () {
-      document.getElementById(otherId).style.display = this.value === 'Other (type below)' ? 'block' : 'none';
-    });
+  async function initBankSelect(wrapId, selectId, onChange) {
+    document.getElementById(wrapId).innerHTML = await renderBankSelect(selectId);
+    if (onChange) document.getElementById(selectId).addEventListener('change', onChange);
   }
-  function bankValue(selectId, otherId) {
-    const sel = document.getElementById(selectId).value;
-    return sel === 'Other (type below)' ? document.getElementById(otherId).value.trim() : sel;
+  function bankName(selectId) {
+    const sel = document.getElementById(selectId);
+    const opt = sel.options[sel.selectedIndex];
+    return opt ? opt.textContent : '';
   }
-  window.addEventListener('DOMContentLoaded', () => initBankSelect('wd_bankWrap', 'wd_bank', 'wd_bankOther'));
+
+  // Resolves the account number against the bank it belongs to and fills in
+  // the real name on file — the seller can no longer just type any name,
+  // which is what makes it safe to pay this account automatically.
+  async function verifyAccount(bankSelectId, acctNumberId, acctNameId, statusId) {
+    const bankCode = document.getElementById(bankSelectId).value;
+    const accountNumber = document.getElementById(acctNumberId).value.trim();
+    const nameField = document.getElementById(acctNameId);
+    const status = document.getElementById(statusId);
+    nameField.value = '';
+    nameField.dataset.verified = '';
+    if (!bankCode || accountNumber.length !== 10) { status.textContent = ''; return; }
+    status.textContent = 'Checking account…';
+    status.style.color = 'var(--gray-600)';
+    try {
+      const res = await authedFetch('/api/resolve-account', { method: 'POST', body: JSON.stringify({ bankCode, accountNumber }) });
+      const r = await res.json();
+      if (r.ok) {
+        nameField.value = r.accountName;
+        nameField.dataset.verified = '1';
+        status.textContent = '✓ Verified: ' + r.accountName;
+        status.style.color = 'var(--green-700)';
+      } else {
+        status.textContent = r.message || 'Could not verify this account.';
+        status.style.color = '#B4232C';
+      }
+    } catch (e) {
+      status.textContent = 'Could not verify this account — check your connection.';
+      status.style.color = '#B4232C';
+    }
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    initBankSelect('wd_bankWrap', 'wd_bank', () => verifyAccount('wd_bank', 'wd_accountNumber', 'wd_accountName', 'wd_verifyMsg'));
+    document.getElementById('wd_accountNumber').addEventListener('blur', () => verifyAccount('wd_bank', 'wd_accountNumber', 'wd_accountName', 'wd_verifyMsg'));
+  });
 
   const seller = JSON.parse(localStorage.getItem('sellhub_seller') || 'null');
   const authToken = localStorage.getItem('sellhub_seller_token');
@@ -769,23 +804,31 @@
   }
 
   async function submitWithdraw(){
+    const msgEl = document.getElementById('wd_msg');
+    const nameField = document.getElementById('wd_accountName');
+    if (!document.getElementById('wd_bank').value || !nameField.dataset.verified) {
+      msgEl.textContent = 'Select your bank and enter your account number so we can verify it first.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
     const body = {
       amount: document.getElementById('wd_amount').value,
-      bank: bankValue('wd_bank', 'wd_bankOther'),
+      bank: bankName('wd_bank'),
+      bankCode: document.getElementById('wd_bank').value,
       accountNumber: document.getElementById('wd_accountNumber').value,
-      accountName: document.getElementById('wd_accountName').value
+      accountName: nameField.value
     };
     const res = await authedFetch('/api/seller/withdraw', { method: 'POST', body: JSON.stringify(body) });
     const result = await res.json();
-    document.getElementById('wd_msg').textContent = result.message;
-    document.getElementById('wd_msg').style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    msgEl.textContent = result.message;
+    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
     if (result.ok) {
       document.getElementById('wd_amount').value = '';
       document.getElementById('wd_bank').value = '';
-      document.getElementById('wd_bankOther').value = '';
-      document.getElementById('wd_bankOther').style.display = 'none';
       document.getElementById('wd_accountNumber').value = '';
-      document.getElementById('wd_accountName').value = '';
+      nameField.value = '';
+      nameField.dataset.verified = '';
+      document.getElementById('wd_verifyMsg').textContent = '';
       updateFeePreview();
       loadWallet();
     }
