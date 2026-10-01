@@ -403,7 +403,11 @@
         <div class="actions">
           <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve &amp; Pay</button>
           <button class="btn reject" onclick="decideWithdrawal(${w.id}, 'Rejected')">Reject &amp; Refund</button>
+        </div>
+        <div class="actions" style="margin-top:6px;">
+          <button class="btn" style="width:100%; background:#f2f2f2; color:var(--gray-600); font-size:11.5px; padding:8px 14px;" onclick="decideWithdrawal(${w.id}, 'ApprovedManual')">I already paid this manually — just mark it Approved</button>
         </div>` : ''}
+        ${w.status === 'Approved' && w.paidManually ? `<div class="row" style="color:var(--gray-600);">Paid manually (not sent via Paystack).</div>` : ''}
         ${w.status === 'Processing' && w.needsOtp ? `
         <div class="actions">
           <button class="btn approve" onclick="promptOtp('${w.transferCode}')">Enter OTP</button>
@@ -415,6 +419,7 @@
   async function decideWithdrawal(id, decision){
     if (decision === 'Rejected' && !confirm('Reject this withdrawal and refund the seller wallet?')) return;
     if (decision === 'Approved' && !confirm('This will send real money to the seller\'s bank account right now via Paystack. Continue?')) return;
+    if (decision === 'ApprovedManual' && !confirm('This does NOT send any money. Only use this if you have ALREADY paid the seller yourself. Continue?')) return;
     const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision }) });
     const r = await res.json();
     alert(r.message);
