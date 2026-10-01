@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verification Center — SellHub</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
+    --mint-100:#EAF7EF; --mint-50:#F5FBF7; --ink:#0B0F0C; --gray-600:#5B6B62; --gray-300:#DCE6E0;
+    --amber-100:#FFF3E0; --amber-700:#B26A00; --blue-100:#E8F0FE; --blue-700:#1A56DB;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink);
+    background:radial-gradient(900px 500px at 12% -8%, rgba(63,193,127,0.10), transparent 60%), linear-gradient(180deg, var(--mint-50) 0%, #fff 45%);}
+  h1,h2,h3{font-family:'Fraunces',serif; font-weight:560; margin:0;}
+
+  header{background:rgba(255,255,255,0.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--gray-300); position:sticky; top:0; z-index:10;}
+  .nav{max-width:820px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:space-between;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:560; font-size:18px;}
+  .logo-mark{width:26px; height:26px; border-radius:8px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); position:relative;}
+  .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:12px;}
+  .back-link{font-size:13.5px; font-weight:700; color:var(--gray-600); text-decoration:none; cursor:pointer;}
+
+  .wrap{max-width:820px; margin:0 auto; padding:36px 24px 80px;}
+  .page-title{font-size:26px; margin-bottom:6px;}
+  .page-sub{color:var(--gray-600); font-size:14.5px; margin-bottom:32px;}
+
+  .tracker{display:flex; align-items:center; margin-bottom:36px;}
+  .tracker-step{flex:1; display:flex; flex-direction:column; align-items:center; position:relative;}
+  .tracker-dot{width:30px; height:30px; border-radius:50%; background:var(--gray-300); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:800; z-index:1;}
+  .tracker-step.done .tracker-dot{background:var(--green-700);}
+  .tracker-step.pending .tracker-dot{background:var(--amber-700);}
+  .tracker-line{position:absolute; top:14px; left:-50%; width:100%; height:2px; background:var(--gray-300); z-index:0;}
+  .tracker-step.done .tracker-line{background:var(--green-700);}
+  .tracker-step:first-child .tracker-line{display:none;}
+  .tracker-label{font-size:11px; font-weight:700; color:var(--gray-600); margin-top:8px; text-align:center;}
+
+  .card{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:26px; margin-bottom:20px;}
+  .card-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .card-top h3{font-size:17px;}
+  .badge{font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:100px;}
+  .badge.verified{background:var(--mint-100); color:var(--green-900);}
+  .badge.pending{background:var(--amber-100); color:var(--amber-700);}
+  .badge.notstarted{background:#f2f2f2; color:var(--gray-600);}
+  .card-desc{color:var(--gray-600); font-size:13.5px; margin-bottom:18px;}
+
+  label{font-size:12.5px; font-weight:700; color:var(--gray-600); display:block; margin-top:14px; margin-bottom:6px;}
+  input, select{width:100%; padding:11px 13px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif;}
+  input:focus, select:focus{outline:none; border-color:var(--green-700);}
+
+  .btn{padding:12px 20px; border-radius:100px; font-weight:700; font-size:13.5px; cursor:pointer; border:none; font-family:'Manrope',sans-serif; margin-top:16px;}
+  .btn.primary{background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff;}
+  .msg{margin-top:10px; font-size:13px; font-weight:700;}
+
+  .pending-note{background:var(--amber-100); color:var(--amber-700); border-radius:10px; padding:12px 14px; font-size:13px; font-weight:600; margin-top:6px;}
+  .done-note{background:var(--mint-100); color:var(--green-900); border-radius:10px; padding:12px 14px; font-size:13px; font-weight:600; margin-top:6px;}
+
+  .photo-row{display:flex; gap:14px; margin-top:14px; flex-wrap:wrap;}
+  .photo-slot{width:150px;}
+  .photo-frame{width:150px; height:110px; border-radius:12px; border:1.5px dashed var(--gray-300); background:var(--mint-50); display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; position:relative;}
+  .photo-frame:hover{border-color:var(--green-700);}
+  .photo-frame img{width:100%; height:100%; object-fit:cover;}
+  .photo-frame .placeholder{text-align:center; color:var(--gray-600); font-size:11.5px; padding:8px;}
+  .photo-frame .placeholder .icon{font-size:22px; display:block; margin-bottom:4px;}
+  .photo-frame input[type="file"]{display:none;}
+  .photo-caption{font-size:11.5px; font-weight:700; color:var(--gray-600); margin-top:6px; text-align:center;}
+  .photo-caption.ready{color:var(--green-700);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="logo"><span class="logo-mark"></span>SellHub</div>
+    <a class="back-link" href="/seller-dashboard">← Back to dashboard</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1 class="page-title">Verification Center</h1>
+  <p class="page-sub">Verified sellers build more trust with customers and unlock withdrawal features faster.</p>
+
+  <div class="tracker">
+    <div class="tracker-step done"><div class="tracker-dot">✓</div><div class="tracker-label">Phone</div></div>
+    <div class="tracker-step" id="trackIdentity"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Identity</div></div>
+    <div class="tracker-step" id="trackBank"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Bank</div></div>
+    <div class="tracker-step" id="trackBusiness"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Business</div></div>
+  </div>
+
+  <!-- PHONE -->
+  <div class="card">
+    <div class="card-top">
+      <h3>📱 Phone Verification</h3>
+      <span class="badge verified">Verified ✓</span>
+    </div>
+    <p class="card-desc">Your phone number was verified with a one-time code when you created your account.</p>
+  </div>
+
+  <!-- IDENTITY -->
+  <div class="card">
+    <div class="card-top">
+      <h3>🪪 Identity Verification</h3>
+      <span class="badge notstarted" id="badgeIdentity">Not started</span>
+    </div>
+    <p class="card-desc">Confirm your legal identity. This is required before you can withdraw funds.</p>
+    <div id="identityForm">
+      <label>Legal name</label>
+      <input id="legalName" placeholder="As it appears on your ID">
+      <label>Date of birth</label>
+      <input id="dateOfBirth" type="date">
+      <label>ID type</label>
+      <select id="idType">
+        <option value="NIN">National Identification Number (NIN)</option>
+        <option value="Government ID">Government-issued ID</option>
+        <option value="CAC">Corporate Affairs Commission (CAC)</option>
+      </select>
+      <label>ID number</label>
+      <input id="idNumber" placeholder="Enter the ID number">
+
+      <label>Document photos</label>
+      <div class="photo-row">
+        <div class="photo-slot">
+          <div class="photo-frame" onclick="document.getElementById('idDocInput').click()">
+            <div class="placeholder" id="idDocPlaceholder"><span class="icon">🪪</span>Photo of your ID</div>
+            <img id="idDocPreview" style="display:none;">
+            <input type="file" id="idDocInput" accept="image/*" capture="environment" onchange="handlePhoto(this, 'idDoc')">
+          </div>
+          <div class="photo-caption" id="idDocCaption">Tap to capture</div>
+        </div>
+        <div class="photo-slot">
+          <div class="photo-frame" onclick="document.getElementById('selfieInput').click()">
+            <div class="placeholder" id="selfiePlaceholder"><span class="icon">🤳</span>Selfie holding your ID</div>
+            <img id="selfiePreview" style="display:none;">
+            <input type="file" id="selfieInput" accept="image/*" capture="user" onchange="handlePhoto(this, 'selfie')">
+          </div>
+          <div class="photo-caption" id="selfieCaption">Tap to capture</div>
+        </div>
+      </div>
+
+      <button class="btn primary" onclick="submitIdentity()">Submit for review</button>
+      <div class="msg" id="identityMsg"></div>
+    </div>
+    <div id="identityStatusNote"></div>
+  </div>
+
+  <!-- BANK -->
+  <div class="card">
+    <div class="card-top">
+      <h3>🏦 Bank Verification</h3>
+      <span class="badge notstarted" id="badgeBank">Not started</span>
+    </div>
+    <p class="card-desc">We'll confirm this account matches your verified identity before enabling withdrawals.</p>
+    <div id="bankForm">
+      <label>Bank name</label>
+      <input id="bankName" placeholder="e.g. GTBank">
+      <label>Account number</label>
+      <input id="accountNumber" placeholder="10-digit account number">
+      <label>Account name</label>
+      <input id="accountName" placeholder="Name on the account">
+      <button class="btn primary" onclick="submitBank()">Submit for review</button>
+      <div class="msg" id="bankMsg"></div>
+    </div>
+    <div id="bankStatusNote"></div>
+  </div>
+
+  <!-- BUSINESS -->
+  <div class="card">
+    <div class="card-top">
+      <h3>🏢 Business Verification</h3>
+      <span class="badge notstarted" id="badgeBusiness">Not started</span>
+    </div>
+    <p class="card-desc">Optional, but adds a "Business Verified" badge to your store for extra trust.</p>
+    <div id="businessForm">
+      <label>CAC registration number</label>
+      <input id="cacNumber" placeholder="e.g. RC1234567">
+      <label>Registered business name</label>
+      <input id="registeredBusinessName" placeholder="As registered with CAC">
+
+      <label>CAC document photo</label>
+      <div class="photo-row">
+        <div class="photo-slot">
+          <div class="photo-frame" onclick="document.getElementById('cacDocInput').click()">
+            <div class="placeholder" id="cacDocPlaceholder"><span class="icon">📄</span>Photo of CAC certificate</div>
+            <img id="cacDocPreview" style="display:none;">
+            <input type="file" id="cacDocInput" accept="image/*" capture="environment" onchange="handlePhoto(this, 'cacDoc')">
+          </div>
+          <div class="photo-caption" id="cacDocCaption">Tap to capture</div>
+        </div>
+      </div>
+
+      <button class="btn primary" onclick="submitBusiness()">Submit for review</button>
+      <div class="msg" id="businessMsg"></div>
+    </div>
+    <div id="businessStatusNote"></div>
+  </div>
+</div>
+
+<script>
+  const seller = JSON.parse(localStorage.getItem('sellhub_seller') || 'null');
+  const authToken = localStorage.getItem('sellhub_seller_token');
+  if (!seller || !authToken) window.location.href = '/login';
+  const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+
+  // Captured photos live here as compressed base64 JPEGs, keyed by 'idDoc', 'selfie', 'cacDoc'.
+  const capturedPhotos = {};
+
+  function handlePhoto(inputEl, key){
+    const file = inputEl.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Resize down so we're not stuffing huge multi-megabyte photos into storage.
+        const maxWidth = 900;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        capturedPhotos[key] = compressed;
+
+        const preview = document.getElementById(key + 'Preview');
+        const placeholder = document.getElementById(key + 'Placeholder');
+        const caption = document.getElementById(key + 'Caption');
+        preview.src = compressed;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+        caption.textContent = 'Captured ✓ — tap to retake';
+        caption.classList.add('ready');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function applyStatus(kind, status){
+    const badge = document.getElementById('badge' + kind);
+    const form = document.getElementById(kind.charAt(0).toLowerCase() + kind.slice(1) + 'Form');
+    const note = document.getElementById(kind.charAt(0).toLowerCase() + kind.slice(1) + 'StatusNote');
+    const track = document.getElementById('track' + kind);
+
+    if (status === 'Verified') {
+      badge.textContent = 'Verified ✓';
+      badge.className = 'badge verified';
+      form.style.display = 'none';
+      note.innerHTML = '<div class="done-note">✓ Verified. This shows on your store as a trust badge.</div>';
+      if (track) { track.classList.add('done'); track.classList.remove('pending'); track.querySelector('.tracker-dot').textContent = '✓'; }
+    } else if (status === 'Pending review') {
+      badge.textContent = 'Pending review';
+      badge.className = 'badge pending';
+      form.style.display = 'none';
+      note.innerHTML = '<div class="pending-note">⏳ Submitted — under review. This usually takes 1-2 business days.</div>';
+      if (track) track.classList.add('pending');
+    } else {
+      badge.textContent = 'Not started';
+      badge.className = 'badge notstarted';
+    }
+  }
+
+  async function loadStatus(){
+    const res = await fetch('/api/seller/verification-status', { headers: authHeaders });
+    const result = await res.json();
+    if (!result.ok) return;
+    applyStatus('Identity', result.identity);
+    applyStatus('Bank', result.bank);
+    applyStatus('Business', result.business);
+  }
+
+  async function submitIdentity(){
+    const body = {
+      legalName: document.getElementById('legalName').value.trim(),
+      dateOfBirth: document.getElementById('dateOfBirth').value,
+      idType: document.getElementById('idType').value,
+      idNumber: document.getElementById('idNumber').value.trim(),
+      idDocumentImage: capturedPhotos.idDoc || null,
+      selfieImage: capturedPhotos.selfie || null
+    };
+    const msgEl = document.getElementById('identityMsg');
+    if (!body.legalName || !body.dateOfBirth || !body.idNumber) {
+      msgEl.textContent = 'Please fill in every field.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+    if (!body.idDocumentImage || !body.selfieImage) {
+      msgEl.textContent = 'Please capture both a photo of your ID and a selfie.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+    const res = await fetch('/api/seller/verify-identity', { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
+    const result = await res.json();
+    msgEl.textContent = result.message;
+    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) loadStatus();
+  }
+
+  async function submitBank(){
+    const body = {
+      bankName: document.getElementById('bankName').value.trim(),
+      accountNumber: document.getElementById('accountNumber').value.trim(),
+      accountName: document.getElementById('accountName').value.trim()
+    };
+    const msgEl = document.getElementById('bankMsg');
+    if (!body.bankName || !body.accountNumber || !body.accountName) {
+      msgEl.textContent = 'Please fill in every field.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+    const res = await fetch('/api/seller/verify-bank', { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
+    const result = await res.json();
+    msgEl.textContent = result.message;
+    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) loadStatus();
+  }
+
+  async function submitBusiness(){
+    const body = {
+      cacNumber: document.getElementById('cacNumber').value.trim(),
+      registeredBusinessName: document.getElementById('registeredBusinessName').value.trim(),
+      cacDocumentImage: capturedPhotos.cacDoc || null
+    };
+    const msgEl = document.getElementById('businessMsg');
+    if (!body.cacNumber || !body.registeredBusinessName) {
+      msgEl.textContent = 'Please fill in every field.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+    if (!body.cacDocumentImage) {
+      msgEl.textContent = 'Please capture a photo of your CAC document.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+    const res = await fetch('/api/seller/verify-business', { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
+    const result = await res.json();
+    msgEl.textContent = result.message;
+    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) loadStatus();
+  }
+
+  loadStatus();
+</script>
+</body>
+</html>

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seller Dashboard — SellHub</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
+    --mint-100:#EAF7EF; --mint-50:#F5FBF7; --ink:#0B0F0C; --gray-600:#5B6B62; --gray-300:#DCE6E0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink);
+    background:radial-gradient(700px 420px at 82% -6%, rgba(63,193,127,0.14), transparent 60%), linear-gradient(180deg, var(--mint-50), #fff 62%);}
+  h1,h2,h3{font-family:'Fraunces',serif; font-weight:560; margin:0;}
+
+  header{background:rgba(255,255,255,0.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--gray-300); position:sticky; top:0; z-index:10;}
+  .nav{max-width:1100px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:space-between;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:560; font-size:18px;}
+  .logo-mark{width:26px; height:26px; border-radius:8px; overflow:hidden; position:relative; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; background:linear-gradient(150deg,var(--green-400),var(--green-700));}
+  .logo-icon{color:#fff; font-family:'Fraunces',serif; font-weight:700; font-size:14px;}
+  .logo-mark img{width:26px; height:26px; object-fit:cover; display:block; position:absolute; top:0; left:0;}
+  .greeting{font-size:13.5px; color:var(--gray-600);}
+  .greeting b{color:var(--ink);}
+  .logout-btn{padding:9px 18px; background:#f2f2f2; border:none; border-radius:100px; font-weight:700; font-size:13px; cursor:pointer; font-family:'Manrope',sans-serif;}
+
+  .free-banner{background:var(--mint-100); color:var(--green-900); text-align:center; padding:9px; font-size:13px; font-weight:700;}
+  .warning-card{background:#FFF3E0; border:1px solid #F3D9A8; padding:14px 16px; font-size:13px; color:#8A5A00;}
+  .reminder-card{background:#E8F0FE; border:1px solid #C7D9F9; padding:14px 16px; font-size:13px; color:#1A56DB; cursor:pointer;}
+  .reminder-card b{display:block; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:3px;}
+  .reminder-card .r-date{font-size:11px; color:#3E6FE0; margin-top:3px;}
+  .warning-card b{display:block; font-size:12px; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:3px;}
+  .warning-card .w-date{font-size:11px; color:#B26A00; margin-top:3px;}
+
+  main{max-width:1100px; margin:0 auto; padding:28px 24px 80px;}
+  .tabs{display:flex; gap:8px; margin-bottom:26px; border-bottom:1px solid var(--gray-300); overflow-x:auto;}
+  .tab{padding:12px 18px; font-weight:700; font-size:14px; color:var(--gray-600); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;}
+  .tab.active{color:var(--green-900); border-bottom-color:var(--green-700);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .stat-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:16px; margin-bottom:26px;}
+  .stat-card{background:#fff; border:1px solid var(--gray-300); border-radius:16px; padding:18px;}
+  .stat-card .lbl{font-size:12px; color:var(--gray-600); font-weight:700;}
+  .stat-card .val{font-family:'Fraunces',serif; font-size:24px; margin-top:6px; color:var(--green-900);}
+
+  .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .panel-head h2{font-size:19px;}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:11px 20px; border-radius:100px; font-weight:700; font-size:13.5px; cursor:pointer;
+    border:none; font-family:'Manrope',sans-serif;
+  }
+  .btn.primary{background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff;}
+  .btn.ghost{background:#f2f2f2; color:var(--ink);}
+  .btn.danger{background:#FDEAEA; color:#B4232C;}
+  .btn.small{padding:8px 14px; font-size:12.5px;}
+
+  .product-controls{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  .p-search{flex:1; min-width:160px; padding:10px 14px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:13.5px; font-family:'Manrope',sans-serif;}
+  .product-controls select{padding:10px 12px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:13px; font-family:'Manrope',sans-serif; background:#fff;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:16px;}
+  .p-card{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:14px;}
+  .p-thumb{height:100px; border-radius:12px; margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
+  .p-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .p-thumb .no-photo{display:flex; align-items:center; justify-content:center; height:100%; color:var(--gray-600); font-size:11px;}
+  .p-stock-badge{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:100px;}
+  .p-stock-badge.in{background:var(--mint-100); color:var(--green-900);}
+  .p-stock-badge.out{background:#FDEAEA; color:#B4232C;}
+  .p-price-row{display:flex; align-items:center; gap:6px; margin-top:6px;}
+  .p-price-old{font-size:12px; color:var(--gray-600); text-decoration:line-through;}
+  .p-sku{font-size:11px; color:var(--gray-600); margin-top:3px;}
+  .p-name{font-size:14px; font-weight:700;}
+  .p-price{font-size:15px; font-weight:800; color:var(--green-700); margin-top:6px;}
+  .p-actions{display:flex; gap:8px; margin-top:12px;}
+  .p-btn{flex:1; padding:9px; border-radius:100px; font-size:12px; font-weight:700; cursor:pointer; border:none; font-family:'Manrope',sans-serif;}
+  .p-btn.edit{background:var(--mint-100); color:var(--green-900);}
+  .p-btn.delete{background:#FDEAEA; color:#B4232C;}
+
+  .order-card{background:#fff; border:1px solid var(--gray-300); border-left:4px solid var(--gray-300); border-radius:18px; padding:20px; margin-bottom:16px;}
+  .order-card.order-status-OrderReceived{border-left-color:#8A9A94;}
+  .order-card.order-status-Processing{border-left-color:#B26A00;}
+  .order-card.order-status-Shipped{border-left-color:#1A56DB;}
+  .order-card.order-status-OutforDelivery{border-left-color:#7C3AED;}
+  .order-card.order-status-Delivered{border-left-color:var(--green-700);}
+  .order-card.order-status-Cancelled{border-left-color:#B4232C; opacity:0.85;}
+  .order-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:8px;}
+  .order-id{font-size:12px; color:var(--gray-600);}
+  .order-date{font-size:12px; color:var(--gray-600);}
+  .status-badge{font-size:12px; font-weight:700; padding:5px 12px; border-radius:100px;}
+  .status-OrderReceived{background:#EEF1F0; color:#5B6B62;}
+  .status-Processing{background:#FFF3E0; color:#B26A00;}
+  .status-Shipped{background:#E8F0FE; color:#1A56DB;}
+  .status-OutforDelivery{background:#F1E8FE; color:#7C3AED;}
+  .status-Delivered{background:var(--mint-100); color:var(--green-900);}
+  .status-Cancelled{background:#FDEAEA; color:#B4232C;}
+  .disputed-flag{background:#FDEAEA; color:#B4232C; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:100px; margin-left:8px;}
+  .new-order-flag{background:var(--green-700); color:#fff; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:100px; margin-left:8px;}
+
+  .order-filters{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .order-filter-chip{padding:8px 14px; border-radius:100px; font-size:12.5px; font-weight:700; cursor:pointer; border:1.5px solid var(--gray-300); background:#fff; color:var(--gray-600);}
+  .order-filter-chip.active{background:var(--green-900); border-color:var(--green-900); color:#fff;}
+  .tab-badge{background:var(--green-700); color:#fff; font-size:10.5px; font-weight:800; border-radius:100px; padding:1px 6px; margin-left:4px; vertical-align:top;}
+
+  .tracking-form{background:var(--mint-50); border:1px solid var(--gray-300); border-radius:14px; padding:16px; margin-top:14px;}
+  .tracking-form h4{font-size:13px; font-weight:700; margin-bottom:10px;}
+  .tracking-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .tracking-grid label{font-size:11.5px; font-weight:700; color:var(--gray-600); display:block; margin-bottom:4px;}
+  .tracking-grid input{width:100%; padding:9px 11px; border-radius:9px; border:1.5px solid var(--gray-300); font-size:13px; font-family:'Manrope',sans-serif;}
+  .tracking-form .btn{margin-top:12px;}
+  .order-item-row{display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; border-bottom:1px solid #f0f0f0;}
+  .order-customer{font-size:13px; color:var(--gray-600); margin-bottom:10px;}
+  .order-mine-total{display:flex; justify-content:space-between; font-weight:800; margin-top:10px; color:var(--green-900);}
+  .order-actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .btn.danger{background:#FDEAEA; color:#B4232C;}
+
+  .wallet-card{
+    background:linear-gradient(155deg,var(--green-900), #0d3a26);
+    border-radius:24px; padding:32px; color:#fff; position:relative; overflow:hidden;
+    box-shadow:0 30px 60px -24px rgba(11,61,40,0.5);
+  }
+  .wallet-label{font-size:13px; color:rgba(255,255,255,0.65); font-weight:700;}
+  .wallet-balance{font-family:'Fraunces',serif; font-size:42px; margin-top:6px;}
+
+  .withdraw-form{margin-top:24px; background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:22px;}
+  .withdraw-form label{font-size:12.5px; font-weight:700; margin-top:12px; display:block;}
+  .withdraw-form input{width:100%; padding:11px 13px; margin-top:6px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif;}
+  .withdraw-form select{
+    width:100%; padding:11px 36px 11px 13px; margin-top:6px; border-radius:10px; border:1.5px solid var(--gray-300);
+    font-size:14px; font-family:'Manrope',sans-serif; background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%235B6B62" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>') no-repeat right 13px center;
+    -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink);
+  }
+  .withdraw-form select:focus{outline:none; border-color:var(--green-600);}
+  .fee-breakdown{margin-top:16px; padding:14px; background:var(--mint-100); border-radius:12px; font-size:13.5px;}
+  .fee-breakdown .row{display:flex; justify-content:space-between; padding:2px 0;}
+  .fee-breakdown .row.total{font-weight:800; border-top:1px solid rgba(11,61,40,0.15); margin-top:6px; padding-top:8px;}
+
+  .txn-list{margin-top:24px;}
+  .txn-row{display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--gray-300); border-radius:14px; padding:14px 18px; margin-bottom:10px;}
+  .txn-type{font-weight:700; font-size:14px;}
+  .txn-date{font-size:12px; color:var(--gray-600); margin-top:2px;}
+  .txn-amount{font-weight:800;}
+  .txn-amount.in{color:var(--green-700);}
+  .txn-amount.out{color:#B4232C;}
+  .txn-status{font-size:11px; font-weight:700; padding:2px 9px; border-radius:100px; margin-left:8px;}
+  .txn-status.Pending{background:#FFF3E0; color:#B26A00;}
+
+  .empty{text-align:center; padding:60px 20px; color:var(--gray-600);}
+  .empty h3{color:var(--ink); margin-bottom:8px; font-size:18px;}
+  .empty p{font-size:13.5px;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(11,15,12,0.55); backdrop-filter:blur(3px); z-index:100; align-items:center; justify-content:center; padding:20px;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff; border-radius:22px; max-width:440px; width:100%; max-height:85vh; overflow-y:auto; padding:28px;}
+  .modal.modal-wide{max-width:560px;}
+  .modal h2{font-size:19px; margin-bottom:16px;}
+  .modal-close{float:right; background:none; border:none; font-size:20px; cursor:pointer; color:var(--gray-600);}
+  .modal input{width:100%; padding:11px 13px; margin-top:8px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif;}
+  .modal textarea{width:100%; padding:11px 13px; margin-top:8px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; resize:vertical;}
+  .modal select{width:100%; padding:11px 13px; margin-top:8px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; background:#fff;}
+  .modal label{font-size:12.5px; font-weight:700; margin-top:12px; display:block;}
+  .modal-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .photo-grid{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; margin-bottom:10px;}
+  .photo-tile{width:78px; height:78px; border-radius:10px; overflow:hidden; position:relative; border:1.5px solid var(--gray-300);}
+  .photo-tile img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-tile .remove-photo{position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; background:rgba(11,15,12,0.65); color:#fff; border:none; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .color-row{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .color-swatch{width:30px; height:30px; border-radius:9px; cursor:pointer; border:2px solid transparent;}
+  .color-swatch.selected{border-color:var(--green-700);}
+  .modal-btn{width:100%; margin-top:18px; padding:13px; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff; border:none; border-radius:100px; font-weight:700; cursor:pointer; font-family:'Manrope',sans-serif;}
+  .modal-msg{margin-top:10px; font-weight:700; font-size:13px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="logo"><span class="logo-mark"><span class="logo-icon">S</span></span>SellHub</div>
+    <div class="greeting">Welcome, <b id="storeName">...</b></div>
+    <a href="/verification-center" class="logout-btn" style="text-decoration:none; margin-right:8px;">Verification</a>
+    <button class="logout-btn" onclick="logout()">Log Out</button>
+  </div>
+</header>
+
+<div class="free-banner" id="greetingBanner">Good morning 👋 — here's what's happening with your store today.</div>
+
+<main>
+  <div class="stat-row">
+    <div class="stat-card"><div class="lbl">Available Balance</div><div class="val" id="statBalance">₦0</div></div>
+    <div class="stat-card"><div class="lbl">Total Products</div><div class="val" id="statProducts">0</div></div>
+    <div class="stat-card"><div class="lbl">Total Orders</div><div class="val" id="statOrders">0</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="products" onclick="showTab('products')">Products</div>
+    <div class="tab" data-tab="orders" onclick="showTab('orders')">Orders <span id="ordersTabBadge"></span></div>
+    <div class="tab" data-tab="wallet" onclick="showTab('wallet')">Wallet</div>
+    <div class="tab" data-tab="store" onclick="showTab('store')">Store</div>
+  </div>
+
+  <div class="panel active" id="panel-products">
+    <div id="verificationBanner" style="display:none; background:#FFF3E0; color:#B26A00; border-radius:14px; padding:14px 18px; margin-bottom:18px; font-size:13.5px; font-weight:600;">
+      Your identity hasn't been approved by an admin yet, so you can't post products. <a href="/verification-center" style="color:#B26A00; text-decoration:underline;">Go to Verification Center</a>
+    </div>
+    <div class="panel-head">
+      <h2>Your products</h2>
+      <button class="btn primary" onclick="openProductModal()">+ Add Product</button>
+    </div>
+    <div class="product-controls">
+      <input id="p_search" class="p-search" placeholder="Search your products..." oninput="renderProducts()">
+      <select id="p_categoryFilter" onchange="renderProducts()">
+        <option value="">All categories</option>
+      </select>
+      <select id="p_statusFilter" onchange="renderProducts()">
+        <option value="">All statuses</option>
+        <option value="In Stock">In Stock</option>
+        <option value="Out of Stock">Out of Stock</option>
+      </select>
+      <select id="p_sort" onchange="renderProducts()">
+        <option value="newest">Newest first</option>
+        <option value="priceLow">Price: Low to High</option>
+        <option value="priceHigh">Price: High to Low</option>
+        <option value="nameAZ">Name: A to Z</option>
+      </select>
+    </div>
+    <div class="grid" id="productGrid"></div>
+  </div>
+
+  <div class="panel" id="panel-orders">
+    <div class="panel-head"><h2>Orders for your products</h2></div>
+    <div class="order-filters" id="orderFilters"></div>
+    <div id="ordersList"></div>
+  </div>
+
+  <div class="panel" id="panel-wallet">
+    <div class="wallet-card">
+      <div class="wallet-label">Available Balance</div>
+      <div class="wallet-balance" id="walletBalance">₦0</div>
+    </div>
+
+    <div class="withdraw-form">
+      <h3 style="font-size:16px;">Withdraw funds</h3>
+      <label>Amount</label>
+      <input id="wd_amount" type="number" placeholder="e.g. 20000" oninput="updateFeePreview()">
+      <label>Bank name</label>
+      <div id="wd_bankWrap"></div>
+      <input id="wd_bankOther" placeholder="Type your bank's name" style="display:none;">
+      <label>Account number</label>
+      <input id="wd_accountNumber" placeholder="10-digit account number">
+      <label>Account name</label>
+      <input id="wd_accountName" placeholder="Name on the account">
+      <div class="fee-breakdown" id="wd_feeBreakdown">
+        <div class="row"><span>Withdrawal amount</span><span>₦0</span></div>
+        <div class="row"><span>Withdrawal fee</span><span>₦0</span></div>
+        <div class="row total"><span>You receive</span><span>₦0</span></div>
+      </div>
+      <button class="modal-btn" onclick="submitWithdraw()">Confirm Withdrawal</button>
+      <div class="modal-msg" id="wd_msg"></div>
+    </div>
+
+    <div class="txn-list" id="txnList"></div>
+  </div>
+
+  <div class="panel" id="panel-store">
+    <div class="panel-head"><h2>Your storefront</h2></div>
+    <p style="color:var(--gray-600); font-size:13.5px; margin-bottom:16px;" id="storeLinkNote">Loading your store link...</p>
+
+    <div style="background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:22px; max-width:480px;">
+      <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:8px;">Store logo / profile photo</label>
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
+        <div id="logoPreviewFrame" style="width:72px; height:72px; border-radius:16px; overflow:hidden; background:var(--mint-50); border:1.5px solid var(--gray-300); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <span style="color:var(--gray-600); font-size:11px;">No photo</span>
+        </div>
+        <div>
+          <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="handleStorePhoto(this, 'logo')">
+          <button class="btn ghost small" type="button" onclick="document.getElementById('logoInput').click()">Choose Photo</button>
+        </div>
+      </div>
+
+      <label style="font-size:12.5px; font-weight:700; display:block; margin-bottom:8px;">Cover photo</label>
+      <div id="coverPreviewFrame" style="width:100%; height:120px; border-radius:14px; overflow:hidden; background:var(--mint-50); border:1.5px solid var(--gray-300); display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+        <span style="color:var(--gray-600); font-size:11px;">No cover photo</span>
+      </div>
+      <input type="file" id="coverInput" accept="image/*" style="display:none" onchange="handleStorePhoto(this, 'cover')">
+      <button class="btn ghost small" type="button" onclick="document.getElementById('coverInput').click()">Choose Cover Photo</button>
+
+      <button class="modal-btn" style="margin-top:22px;" onclick="saveStoreProfile()">Save Store Profile</button>
+      <div class="modal-msg" id="storeProfileMsg"></div>
+    </div>
+  </div>
+</main>
+
+<div class="modal-overlay" id="alertsModal">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="closeModal('alertsModal')">&times;</button>
+    <h2>👋 Before you continue</h2>
+    <div id="alertsModalBody"></div>
+    <button class="modal-btn" onclick="closeModal('alertsModal')">Got it</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="productModal">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
+    <h2 id="productModalTitle">Add Product</h2>
+    <input type="hidden" id="pm_id">
+
+    <label>Product photos (from your gallery or camera)</label>
+    <div class="photo-grid" id="pm_photoGrid"></div>
+    <input type="file" id="pm_photoInput" accept="image/*" multiple style="display:none" onchange="handleProductPhotos(this)">
+    <button class="btn ghost small" type="button" onclick="document.getElementById('pm_photoInput').click()">+ Add Photos</button>
+
+    <label>Product name</label>
+    <input id="pm_name" placeholder="e.g. Ankara Set">
+
+    <label>Description</label>
+    <textarea id="pm_description" rows="3" placeholder="Describe the product — material, fit, what's included..."></textarea>
+
+    <div class="modal-row">
+      <div><label>Price (₦)</label><input id="pm_price" type="number" placeholder="e.g. 18500"></div>
+      <div><label>Discount price (₦) — optional</label><input id="pm_discountPrice" type="number" placeholder="e.g. 15000"></div>
+    </div>
+
+    <div class="modal-row">
+      <div><label>Stock quantity</label><input id="pm_stock" type="number" placeholder="e.g. 10"></div>
+      <div><label>SKU — optional</label><input id="pm_sku" placeholder="e.g. ANK-001"></div>
+    </div>
+
+    <label>Category</label>
+    <select id="pm_category"></select>
+
+    <div class="modal-row">
+      <div><label>Sizes — optional, comma separated</label><input id="pm_sizes" placeholder="e.g. S, M, L, XL"></div>
+      <div><label>Colors — optional, comma separated</label><input id="pm_colors" placeholder="e.g. Red, Blue, Black"></div>
+    </div>
+
+    <button class="modal-btn" onclick="saveProduct()">Save Product</button>
+    <div class="modal-msg" id="pm_msg"></div>
+  </div>
+</div>
+
+<script>
+  const NIGERIAN_BANKS = [
+    "Access Bank","ALAT by Wema","Citibank Nigeria","Ecobank Nigeria","Fidelity Bank",
+    "First Bank of Nigeria","First City Monument Bank (FCMB)","Globus Bank","Guaranty Trust Bank (GTBank)",
+    "Heritage Bank","Jaiz Bank","Keystone Bank","Kuda Bank","Lotus Bank","Moniepoint MFB",
+    "OPay (Paycom)","PalmPay","Parallex Bank","Polaris Bank","PremiumTrust Bank","Providus Bank",
+    "Stanbic IBTC Bank","Standard Chartered Bank","Sterling Bank","SunTrust Bank","Taj Bank",
+    "Titan Trust Bank","Union Bank of Nigeria","United Bank for Africa (UBA)","Unity Bank",
+    "Wema Bank","Zenith Bank","Other (type below)"
+  ];
+  function renderBankSelect(selectId) {
+    return `<select id="${selectId}">
+      <option value="">Select your bank…</option>
+      ${NIGERIAN_BANKS.map(b => `<option value="${b}">${b}</option>`).join('')}
+    </select>`;
+  }
+  function initBankSelect(wrapId, selectId, otherId) {
+    document.getElementById(wrapId).innerHTML = renderBankSelect(selectId);
+    document.getElementById(selectId).addEventListener('change', function () {
+      document.getElementById(otherId).style.display = this.value === 'Other (type below)' ? 'block' : 'none';
+    });
+  }
+  function bankValue(selectId, otherId) {
+    const sel = document.getElementById(selectId).value;
+    return sel === 'Other (type below)' ? document.getElementById(otherId).value.trim() : sel;
+  }
+  window.addEventListener('DOMContentLoaded', () => initBankSelect('wd_bankWrap', 'wd_bank', 'wd_bankOther'));
+
+  const seller = JSON.parse(localStorage.getItem('sellhub_seller') || 'null');
+  const authToken = localStorage.getItem('sellhub_seller_token');
+  if (!seller || !authToken) window.location.href = '/login';
+
+  document.getElementById('storeName').textContent = seller ? seller.businessName : '';
+  const hour = new Date().getHours();
+  const greetWord = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greetingBanner').textContent = `${greetWord} 👋 — here's what's happening with your store today.`;
+
+  const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+
+  fetch('/api/seller/onboarding-status', { headers: authHeaders })
+    .then(r => r.json())
+    .then(result => {
+      if (result.ok && !result.onboardingComplete) {
+        window.location.href = '/seller-onboarding';
+      }
+    })
+    .catch(() => {});
+  async function authedFetch(url, options = {}) {
+    const res = await fetch(url, { ...options, headers: { ...authHeaders, ...(options.headers || {}) } });
+    if (res.status === 401) { localStorage.removeItem('sellhub_seller_token'); window.location.href = '/login'; throw new Error('Session expired'); }
+    return res;
+  }
+
+  function money(n){ return '₦' + Number(n).toLocaleString(); }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+  function openModal(id){ document.getElementById(id).classList.add('active'); }
+
+  const PRODUCT_CATEGORIES = ['Fashion', 'Shoes', 'Beauty', 'Electronics', 'Phones & Accessories', 'Food', 'Home & Living', 'Jewelry', 'Digital Products', 'Other'];
+  ['pm_category', 'p_categoryFilter'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    PRODUCT_CATEGORIES.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  });
+
+  let productPhotos = [];
+
+  function renderPhotoGrid(){
+    const grid = document.getElementById('pm_photoGrid');
+    grid.innerHTML = productPhotos.map((src, i) => `
+      <div class="photo-tile">
+        <img src="${src}">
+        <button class="remove-photo" onclick="removeProductPhoto(${i})">&times;</button>
+      </div>
+    `).join('');
+  }
+
+  function removeProductPhoto(i){
+    productPhotos.splice(i, 1);
+    renderPhotoGrid();
+  }
+
+  function handleProductPhotos(inputEl){
+    const files = Array.from(inputEl.files || []);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = 900;
+          const scale = Math.min(1, maxWidth / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          productPhotos.push(canvas.toDataURL('image/jpeg', 0.75));
+          renderPhotoGrid();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    inputEl.value = '';
+  }
+
+  let products = [];
+  let orders = [];
+
+  async function loadEverything(){
+    await Promise.all([loadProducts(), loadOrders(), loadWallet()]);
+  }
+
+  async function loadProducts(){
+    const res = await authedFetch('/api/seller/products');
+    const result = await res.json();
+    products = result.products || [];
+    document.getElementById('statProducts').textContent = products.length;
+    renderProducts();
+  }
+
+  function renderProducts(){
+    const grid = document.getElementById('productGrid');
+    if (products.length === 0) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><h3>No products yet</h3><p>Add your first product and start building your store.</p></div>`;
+      return;
+    }
+
+    const search = (document.getElementById('p_search').value || '').toLowerCase().trim();
+    const categoryFilter = document.getElementById('p_categoryFilter').value;
+    const statusFilter = document.getElementById('p_statusFilter').value;
+    const sort = document.getElementById('p_sort').value;
+
+    let visible = products.filter(p => {
+      if (search && !p.name.toLowerCase().includes(search) && !(p.sku || '').toLowerCase().includes(search)) return false;
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (statusFilter && p.status !== statusFilter) return false;
+      return true;
+    });
+
+    if (sort === 'priceLow') visible.sort((a, b) => a.price - b.price);
+    else if (sort === 'priceHigh') visible.sort((a, b) => b.price - a.price);
+    else if (sort === 'nameAZ') visible.sort((a, b) => a.name.localeCompare(b.name));
+    else visible.sort((a, b) => b.id - a.id);
+
+    if (visible.length === 0) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><h3>No products match</h3><p>Try a different search or filter.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = visible.map(p => {
+      const thumb = (p.images && p.images[0])
+        ? `<img src="${p.images[0]}">`
+        : `<div class="no-photo">No photo</div>`;
+      const isIn = p.status !== 'Out of Stock';
+      const priceRow = p.discountPrice
+        ? `<span>${money(p.discountPrice)}</span><span class="p-price-old">${money(p.price)}</span>`
+        : `<span>${money(p.price)}</span>`;
+      return `
+        <div class="p-card">
+          <div class="p-thumb">
+            ${thumb}
+            <span class="p-stock-badge ${isIn ? 'in' : 'out'}">${p.status || 'In Stock'}</span>
+          </div>
+          <div class="p-name">${p.name}</div>
+          <div class="p-price-row">${priceRow}</div>
+          ${p.sku ? `<div class="p-sku">SKU: ${p.sku}</div>` : ''}
+          <div class="p-actions">
+            <button class="p-btn edit" onclick="openProductModal(${p.id})">Edit</button>
+            <button class="p-btn delete" onclick="deleteProduct(${p.id})">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openProductModal(id){
+    document.getElementById('pm_msg').textContent = '';
+    productPhotos = [];
+    if (id) {
+      const p = products.find(x => x.id === id);
+      document.getElementById('productModalTitle').textContent = 'Edit Product';
+      document.getElementById('pm_id').value = p.id;
+      document.getElementById('pm_name').value = p.name;
+      document.getElementById('pm_description').value = p.description || '';
+      document.getElementById('pm_price').value = p.price;
+      document.getElementById('pm_discountPrice').value = p.discountPrice || '';
+      document.getElementById('pm_stock').value = p.stock || 0;
+      document.getElementById('pm_sku').value = p.sku || '';
+      document.getElementById('pm_category').value = p.category || 'Other';
+      document.getElementById('pm_sizes').value = (p.sizes || []).join(', ');
+      document.getElementById('pm_colors').value = (p.colors || []).join(', ');
+      productPhotos = (p.images || []).slice();
+    } else {
+      document.getElementById('productModalTitle').textContent = 'Add Product';
+      document.getElementById('pm_id').value = '';
+      document.getElementById('pm_name').value = '';
+      document.getElementById('pm_description').value = '';
+      document.getElementById('pm_price').value = '';
+      document.getElementById('pm_discountPrice').value = '';
+      document.getElementById('pm_stock').value = '';
+      document.getElementById('pm_sku').value = '';
+      document.getElementById('pm_category').value = 'Other';
+      document.getElementById('pm_sizes').value = '';
+      document.getElementById('pm_colors').value = '';
+    }
+    renderPhotoGrid();
+    openModal('productModal');
+  }
+
+  async function saveProduct(){
+    const id = document.getElementById('pm_id').value;
+    const splitTags = (val) => val.split(',').map(s => s.trim()).filter(Boolean);
+    const body = {
+      name: document.getElementById('pm_name').value,
+      description: document.getElementById('pm_description').value,
+      price: document.getElementById('pm_price').value,
+      discountPrice: document.getElementById('pm_discountPrice').value || null,
+      stock: document.getElementById('pm_stock').value || 0,
+      sku: document.getElementById('pm_sku').value,
+      category: document.getElementById('pm_category').value,
+      sizes: splitTags(document.getElementById('pm_sizes').value),
+      colors: splitTags(document.getElementById('pm_colors').value),
+      images: productPhotos
+    };
+    if (id) body.id = Number(id);
+    const url = id ? '/api/seller/products/update' : '/api/seller/products/add';
+
+    const res = await authedFetch(url, { method: 'POST', body: JSON.stringify(body) });
+    const result = await res.json();
+    document.getElementById('pm_msg').textContent = result.message;
+    document.getElementById('pm_msg').style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) {
+      await loadProducts();
+      setTimeout(() => closeModal('productModal'), 700);
+    }
+  }
+
+  async function deleteProduct(id){
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    const res = await authedFetch('/api/seller/products/delete', { method: 'POST', body: JSON.stringify({ id }) });
+    const result = await res.json();
+    if (result.ok) loadProducts();
+    else alert(result.message);
+  }
+
+  let orderFilter = 'all';
+
+  async function loadOrders(){
+    const res = await authedFetch('/api/seller/orders');
+    const result = await res.json();
+    orders = result.orders || [];
+    document.getElementById('statOrders').textContent = orders.length;
+    const newCount = orders.filter(o => o.status === 'Order Received').length;
+    const badge = document.getElementById('ordersTabBadge');
+    if (badge) { badge.textContent = newCount > 0 ? newCount : ''; badge.className = newCount > 0 ? 'tab-badge' : ''; }
+    renderOrderFilters();
+    renderOrders();
+  }
+
+  const STATUS_STEPS = ['Order Received', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
+  function statusSlug(status){ return status.replace(/\s+/g, ''); }
+
+  function setOrderFilter(status){
+    orderFilter = status;
+    renderOrderFilters();
+    renderOrders();
+  }
+
+  function renderOrderFilters(){
+    const el = document.getElementById('orderFilters');
+    if (!el) return;
+    const counts = { all: orders.length };
+    [...STATUS_STEPS, 'Cancelled'].forEach(s => { counts[s] = orders.filter(o => o.status === s).length; });
+    const chips = [{ key: 'all', label: 'All' }, ...STATUS_STEPS.map(s => ({ key: s, label: s })), { key: 'Cancelled', label: 'Cancelled' }];
+    el.innerHTML = chips.map(c => `
+      <div class="order-filter-chip ${orderFilter === c.key ? 'active' : ''}" onclick="setOrderFilter('${c.key}')">${c.label} (${counts[c.key]})</div>
+    `).join('');
+  }
+
+  function renderOrders(){
+    const list = document.getElementById('ordersList');
+    const visible = orderFilter === 'all' ? orders : orders.filter(o => o.status === orderFilter);
+    if (visible.length === 0) {
+      list.innerHTML = `<div class="empty"><h3>No orders here</h3><p>${orders.length === 0 ? "When a customer buys one of your products, it'll show up here." : 'No orders currently match this filter.'}</p></div>`;
+      return;
+    }
+    list.innerHTML = visible.slice().reverse().map(o => {
+      const myItems = o.items.filter(i => i.sellerEmail === seller.email);
+      const myTotal = myItems.reduce((s, i) => s + (i.effectivePrice || i.price), 0);
+      const nextStep = STATUS_STEPS[STATUS_STEPS.indexOf(o.status) + 1];
+      const t = o.tracking || {};
+      const canCancel = o.status !== 'Delivered' && o.status !== 'Cancelled';
+      return `
+        <div class="order-card order-status-${statusSlug(o.status)}">
+          <div class="order-top">
+            <div><div class="order-id">Order #${o.id}</div><div class="order-date">${new Date(o.date).toLocaleString()}</div></div>
+            <span class="status-badge status-${statusSlug(o.status)}">${o.status}</span>${o.status === 'Order Received' ? '<span class="new-order-flag">NEW</span>' : ''}${o.disputed ? '<span class="disputed-flag">Customer reported this order</span>' : ''}
+          </div>
+          <div class="order-customer">Customer: ${o.fullName || 'N/A'} · ${o.phone || 'No phone'} · ${o.deliveryEmail || o.customerEmail || ''}</div>
+          <div class="order-customer">Deliver to: ${o.address || ''}${o.city ? ', ' + o.city : ''}${o.state ? ', ' + o.state : ''}</div>
+          ${myItems.map(i => `<div class="order-item-row"><span>${i.name}</span><span>${money(i.effectivePrice || i.price)}</span></div>`).join('')}
+          <div class="order-mine-total"><span>Your share</span><span>${money(myTotal)}</span></div>
+
+          ${o.status === 'Cancelled' ? `
+          <div class="tracking-form" style="background:#FDEAEA;"><span style="color:#B4232C; font-weight:700; font-size:13px;">This order was cancelled.${o.cancelReason ? ' Reason: ' + o.cancelReason : ''}</span></div>
+          ` : `
+          <div class="tracking-form">
+            <h4>Shipping &amp; delivery details</h4>
+            <div class="tracking-grid">
+              <div><label>Shipped date</label><input type="date" id="ship_date_${o.id}" value="${t.shippedDate || ''}"></div>
+              <div><label>Shipped time</label><input type="time" id="ship_time_${o.id}" value="${t.shippedTime || ''}"></div>
+              <div><label>Expected delivery date</label><input type="date" id="deliv_date_${o.id}" value="${t.expectedDeliveryDate || ''}"></div>
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1;"><label>Delivery from</label><input type="time" id="deliv_start_${o.id}" value="${t.expectedDeliveryTimeStart || ''}"></div>
+                <div style="flex:1;"><label>Delivery until</label><input type="time" id="deliv_end_${o.id}" value="${t.expectedDeliveryTimeEnd || ''}"></div>
+              </div>
+            </div>
+            <button class="btn ghost small" onclick="saveTracking(${o.id})">Save tracking details</button>
+            <span id="track_msg_${o.id}" style="font-size:12px; font-weight:700; margin-left:10px;"></span>
+          </div>
+          `}
+
+          <div class="order-actions">
+            ${nextStep && o.status !== 'Cancelled' ? `<button class="btn primary small" onclick="advanceOrder(${o.id}, '${nextStep}')">Mark as ${nextStep}</button>` : ''}
+            ${o.status === 'Delivered' ? `<span style="font-size:12.5px; color:var(--green-700); font-weight:700;">✓ Delivered</span>` : ''}
+            ${canCancel ? `<button class="btn danger small" onclick="cancelOrder(${o.id})">Cancel Order</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function saveTracking(orderId){
+    const body = {
+      orderId,
+      shippedDate: document.getElementById(`ship_date_${orderId}`).value,
+      shippedTime: document.getElementById(`ship_time_${orderId}`).value,
+      expectedDeliveryDate: document.getElementById(`deliv_date_${orderId}`).value,
+      expectedDeliveryTimeStart: document.getElementById(`deliv_start_${orderId}`).value,
+      expectedDeliveryTimeEnd: document.getElementById(`deliv_end_${orderId}`).value
+    };
+    const res = await authedFetch('/api/seller/update-tracking', { method: 'POST', body: JSON.stringify(body) });
+    const result = await res.json();
+    const msgEl = document.getElementById(`track_msg_${orderId}`);
+    msgEl.textContent = result.ok ? 'Saved ✓' : result.message;
+    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) { loadOrders(); }
+  }
+
+  async function advanceOrder(orderId, status){
+    const res = await authedFetch('/api/seller/update-order-status', { method: 'POST', body: JSON.stringify({ orderId, status }) });
+    const result = await res.json();
+    if (!result.ok) { alert(result.message); return; }
+    await loadOrders();
+    await loadWallet();
+  }
+
+  async function cancelOrder(orderId){
+    if (!confirm('Cancel this order? The customer will be notified by email and in-app.')) return;
+    const reason = prompt('Optional: add a short reason for the customer (you can leave this blank)') || '';
+    const res = await authedFetch('/api/seller/cancel-order', { method: 'POST', body: JSON.stringify({ orderId, reason }) });
+    const result = await res.json();
+    if (!result.ok) { alert(result.message); return; }
+    await loadOrders();
+  }
+
+  let withdrawalFeePercent = 0.99;
+  fetch('/api/seller/fee-info').then(r => r.json()).then(r => { if (r.ok) withdrawalFeePercent = r.sellerWithdrawalFeePercent; });
+
+  async function loadWallet(){
+    const res = await authedFetch('/api/seller/wallet');
+    const result = await res.json();
+    if (!result.ok) return;
+    document.getElementById('walletBalance').textContent = money(result.balance);
+    document.getElementById('statBalance').textContent = money(result.balance);
+
+    const txnList = document.getElementById('txnList');
+    if (result.transactions.length === 0) {
+      txnList.innerHTML = `<div class="empty"><h3>No transactions yet</h3><p>Sales and withdrawals will show up here.</p></div>`;
+      return;
+    }
+    txnList.innerHTML = result.transactions.map(t => {
+      const isIn = t.type === 'sale';
+      const label = isIn ? `Sale — Order #${t.orderId}` : 'Withdrawal';
+      const amountText = (isIn ? '+' : '−') + money(isIn ? t.amount : t.amount);
+      const statusChip = t.status === 'Pending' ? `<span class="txn-status Pending">Pending</span>` : '';
+      return `
+        <div class="txn-row">
+          <div>
+            <div class="txn-type">${label}${statusChip}</div>
+            <div class="txn-date">${new Date(t.date).toLocaleString()}</div>
+          </div>
+          <div class="txn-amount ${isIn ? 'in' : 'out'}">${amountText}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function updateFeePreview(){
+    const amount = Number(document.getElementById('wd_amount').value) || 0;
+    const fee = Math.round(amount * (withdrawalFeePercent / 100));
+    const net = amount - fee;
+    document.getElementById('wd_feeBreakdown').innerHTML = `
+      <div class="row"><span>Withdrawal amount</span><span>${money(amount)}</span></div>
+      <div class="row"><span>Withdrawal fee (${withdrawalFeePercent}%)</span><span>${money(fee)}</span></div>
+      <div class="row total"><span>You receive</span><span>${money(net)}</span></div>
+    `;
+  }
+
+  async function submitWithdraw(){
+    const body = {
+      amount: document.getElementById('wd_amount').value,
+      bank: bankValue('wd_bank', 'wd_bankOther'),
+      accountNumber: document.getElementById('wd_accountNumber').value,
+      accountName: document.getElementById('wd_accountName').value
+    };
+    const res = await authedFetch('/api/seller/withdraw', { method: 'POST', body: JSON.stringify(body) });
+    const result = await res.json();
+    document.getElementById('wd_msg').textContent = result.message;
+    document.getElementById('wd_msg').style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+    if (result.ok) {
+      document.getElementById('wd_amount').value = '';
+      document.getElementById('wd_bank').value = '';
+      document.getElementById('wd_bankOther').value = '';
+      document.getElementById('wd_bankOther').style.display = 'none';
+      document.getElementById('wd_accountNumber').value = '';
+      document.getElementById('wd_accountName').value = '';
+      updateFeePreview();
+      loadWallet();
+    }
+  }
+
+  let storePhotos = { logo: null, cover: null };
+
+  function handleStorePhoto(inputEl, kind){
+    const file = inputEl.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = kind === 'cover' ? 1200 : 500;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        storePhotos[kind] = dataUrl;
+        const frame = document.getElementById(kind === 'logo' ? 'logoPreviewFrame' : 'coverPreviewFrame');
+        frame.innerHTML = `<img src="${dataUrl}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function loadStoreProfile(){
+    if (!seller) return;
+    document.getElementById('storeLinkNote').textContent = 'Loading your store link...';
+
+    const statusRes = await authedFetch('/api/seller/onboarding-status');
+    const statusResult = await statusRes.json();
+    const slug = statusResult.storeSlug;
+
+    if (!slug) {
+      document.getElementById('storeLinkNote').innerHTML =
+        `Your store link isn't set up yet — this usually means onboarding didn't finish. Try logging out and back in.`;
+      return;
+    }
+
+    document.getElementById('storeLinkNote').innerHTML =
+      `Your store is live at: <a href="/store/${slug}" target="_blank" style="color:var(--green-700); font-weight:700;">sellhub.ng/store/${slug}</a>`;
+
+    const res = await fetch('/api/store-info?slug=' + encodeURIComponent(slug));
+    const result = await res.json();
+    if (result.ok && result.store) {
+      if (result.store.logoImage) {
+        document.getElementById('logoPreviewFrame').innerHTML = `<img src="${result.store.logoImage}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+      }
+      if (result.store.coverImage) {
+        document.getElementById('coverPreviewFrame').innerHTML = `<img src="${result.store.coverImage}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+      }
+    }
+  }
+
+  async function saveStoreProfile(){
+    const body = {};
+    if (storePhotos.logo) body.logoImage = storePhotos.logo;
+    if (storePhotos.cover) body.coverImage = storePhotos.cover;
+    const res = await authedFetch('/api/seller/store-profile', { method: 'POST', body: JSON.stringify(body) });
+    const result = await res.json();
+    document.getElementById('storeProfileMsg').textContent = result.message;
+    document.getElementById('storeProfileMsg').style.color = result.ok ? 'var(--green-700)' : '#B4232C';
+  }
+
+  function showTab(name){
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+    if (name === 'store') loadStoreProfile();
+  }
+
+  async function logout(){
+    try { await fetch('/api/logout', { method: 'POST', headers: authHeaders }); } catch (e) {}
+    localStorage.removeItem('sellhub_seller');
+    localStorage.removeItem('sellhub_seller_token');
+    window.location.href = '/';
+  }
+
+  async function checkVerificationGate(){
+    const res = await authedFetch('/api/seller/verification-status');
+    const r = await res.json();
+    const banner = document.getElementById('verificationBanner');
+    const addBtn = document.querySelector('#panel-products .btn.primary');
+    const isVerified = r.ok && r.identity === 'Verified';
+    if (banner) banner.style.display = isVerified ? 'none' : 'block';
+    if (addBtn) {
+      addBtn.disabled = !isVerified;
+      addBtn.style.opacity = isVerified ? '1' : '0.5';
+      addBtn.style.cursor = isVerified ? 'pointer' : 'not-allowed';
+    }
+  }
+
+  async function checkAlertsPopup(){
+    const [warningsRes, notifRes] = await Promise.all([
+      authedFetch('/api/seller/warnings'),
+      authedFetch('/api/seller/notifications')
+    ]);
+    const warningsResult = await warningsRes.json();
+    const notifResult = await notifRes.json();
+
+    const warnings = warningsResult.ok ? (warningsResult.warnings || []) : [];
+    const reminders = notifResult.ok ? (notifResult.notifications || []).filter(n => !n.read) : [];
+
+    if (warnings.length === 0 && reminders.length === 0) return;
+
+    const body = document.getElementById('alertsModalBody');
+    body.innerHTML = `
+      ${warnings.map(w => `
+        <div class="warning-card" style="text-align:left; border-radius:12px; margin-bottom:10px;">
+          <b>⚠ Warning from SellHub Admin</b>
+          ${w.message}
+          <div class="w-date">${new Date(w.date).toLocaleString()}</div>
+        </div>
+      `).join('')}
+      ${reminders.map(n => `
+        <div class="reminder-card" style="text-align:left; border-radius:12px; margin-bottom:10px;" onclick="dismissReminder(${n.id})">
+          <b>🔔 ${n.title}</b>
+          ${n.message}
+          <div class="r-date">${new Date(n.date).toLocaleString()} — tap to dismiss</div>
+        </div>
+      `).join('')}
+    `;
+    openModal('alertsModal');
+  }
+
+  async function dismissReminder(notificationId){
+    await authedFetch('/api/seller/notifications/mark-read', { method: 'POST', body: JSON.stringify({ notificationId }) });
+    checkAlertsPopup();
+  }
+
+  if (seller) { loadEverything(); checkVerificationGate(); checkAlertsPopup(); }
+
+  setInterval(() => {
+    loadOrders();
+  }, 15000);
+</script>
+</body>
+</html>

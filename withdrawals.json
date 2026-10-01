@@ -1,0 +1,54 @@
+[
+  {
+    "id": 1790295572690,
+    "sellerEmail": "joeibrahim077@gmail.com",
+    "storeName": "cac yelwa",
+    "amount": 3000,
+    "fee": 30,
+    "netAmount": 2970,
+    "bank": "opay",
+    "accountNumber": "7044589579",
+    "accountName": "samuel joshua ",
+    "status": "Approved",
+    "date": "2026-09-25T00:19:32.690Z"
+  },
+  {
+    "id": 1790380016146,
+    "sellerEmail": "joeibrahim077@gmail.com",
+    "storeName": "cac yelwa",
+    "amount": 5000,
+    "fee": 49,
+    "netAmount": 4951,
+    "bank": "opay",
+    "accountNumber": "7044589579",
+    "accountName": "gggg",
+    "status": "Approved",
+    "date": "2026-09-25T23:46:56.146Z"
+  },
+  {
+    "id": 1790380145037,
+    "sellerEmail": "joeibrahim077@gmail.com",
+    "storeName": "cac yelwa",
+    "amount": 5000,
+    "fee": 49,
+    "netAmount": 4951,
+    "bank": "kuda",
+    "accountNumber": "98765455667",
+    "accountName": "god",
+    "status": "Approved",
+    "date": "2026-09-25T23:49:05.037Z"
+  },
+  {
+    "id": 1790381251921,
+    "sellerEmail": "joeibrahim077@gmail.com",
+    "storeName": "cac yelwa",
+    "amount": 2000,
+    "fee": 20,
+    "netAmount": 1980,
+    "bank": "jesus bank",
+    "accountNumber": "900983345890",
+    "accountName": "Samuel Joshua",
+    "status": "Approved",
+    "date": "2026-09-26T00:07:31.921Z"
+  }
+]

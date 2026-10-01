@@ -1,0 +1,6 @@
+{
+  "customerServiceFeePercent": 1.99,
+  "sellerWithdrawalFeePercent": 0.99,
+  "adminPassword": "admin123",
+  "withdrawalPin": "080780"
+}

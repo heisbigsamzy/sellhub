@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set Up Your Store — SellHub</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
+    --mint-100:#EAF7EF; --mint-50:#F5FBF7; --ink:#0B0F0C; --gray-600:#5B6B62; --gray-300:#DCE6E0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink);
+    background:radial-gradient(900px 500px at 12% -8%, rgba(63,193,127,0.10), transparent 60%), linear-gradient(180deg, var(--mint-50) 0%, #fff 45%);}
+  h1,h2,h3{font-family:'Fraunces',serif; font-weight:560; margin:0;}
+
+  .wrap{max-width:640px; margin:0 auto; padding:48px 24px 80px;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:560; font-size:20px; margin-bottom:8px;}
+  .logo-mark{width:28px; height:28px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); position:relative;}
+  .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px;}
+
+  .progress{display:flex; gap:6px; margin:24px 0 36px;}
+  .progress div{flex:1; height:4px; border-radius:100px; background:var(--gray-300);}
+  .progress div.active{background:var(--green-700);}
+
+  .step{display:none;}
+  .step.active{display:block;}
+  .step h2{font-size:24px; margin-bottom:8px;}
+  .step p.sub{color:var(--gray-600); font-size:14.5px; margin-bottom:28px;}
+
+  .cat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
+  @media (max-width:480px){ .cat-grid{grid-template-columns:1fr;} }
+  .cat-card{background:#fff; border:1.5px solid var(--gray-300); border-radius:14px; padding:16px 18px; cursor:pointer; font-weight:700; font-size:14.5px; transition:border-color .2s, background .2s;}
+  .cat-card:hover{border-color:rgba(15,122,74,0.4);}
+  .cat-card.selected{border-color:var(--green-700); background:var(--mint-100); color:var(--green-900);}
+
+  label{font-size:12.5px; font-weight:700; color:var(--gray-600); display:block; margin-top:16px; margin-bottom:6px;}
+  input{width:100%; padding:12px 14px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14.5px; font-family:'Manrope',sans-serif;}
+  input:focus{outline:none; border-color:var(--green-700);}
+
+  .url-preview{background:var(--mint-100); border-radius:12px; padding:12px 16px; margin-top:16px; font-size:13.5px; color:var(--green-900); font-weight:700;}
+
+  .btn-row{display:flex; gap:10px; margin-top:32px;}
+  .btn{padding:14px 24px; border-radius:100px; font-weight:700; font-size:14.5px; cursor:pointer; border:none; font-family:'Manrope',sans-serif;}
+  .btn.primary{flex:1; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff;}
+  .btn.primary:disabled{opacity:0.5; cursor:default;}
+  .btn.ghost{background:#f2f2f2; color:var(--ink);}
+
+  .msg{margin-top:14px; font-size:13px; font-weight:700;}
+
+  .done-box{text-align:center; padding:40px 20px;}
+  .done-box .check{width:64px; height:64px; border-radius:50%; background:var(--mint-100); color:var(--green-700); font-size:30px; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;}
+  .done-box .link{background:var(--mint-100); color:var(--green-900); font-weight:700; padding:12px 18px; border-radius:12px; margin:18px 0; font-size:14.5px; word-break:break-all;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="logo"><span class="logo-mark"></span>SellHub</div>
+
+  <div class="progress">
+    <div class="active" id="p1"></div>
+    <div id="p2"></div>
+  </div>
+
+  <!-- STEP 1: CATEGORY -->
+  <div class="step active" id="step1">
+    <h2>What do you sell?</h2>
+    <p class="sub">Pick the category that best fits your store. You can change this later.</p>
+    <div class="cat-grid" id="catGrid">
+      <div class="cat-card" data-cat="Fashion">Fashion</div>
+      <div class="cat-card" data-cat="Shoes">Shoes</div>
+      <div class="cat-card" data-cat="Beauty">Beauty</div>
+      <div class="cat-card" data-cat="Electronics">Electronics</div>
+      <div class="cat-card" data-cat="Phones & Accessories">Phones &amp; Accessories</div>
+      <div class="cat-card" data-cat="Food">Food</div>
+      <div class="cat-card" data-cat="Home & Living">Home &amp; Living</div>
+      <div class="cat-card" data-cat="Jewelry">Jewelry</div>
+      <div class="cat-card" data-cat="Digital Products">Digital Products</div>
+      <div class="cat-card" data-cat="Other">Other</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="toStep2" disabled onclick="goToStep2()">Continue</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: BUSINESS DETAILS -->
+  <div class="step" id="step2">
+    <h2>Tell us about your business</h2>
+    <p class="sub">This helps customers find and trust your store.</p>
+
+    <label>Preferred store name</label>
+    <input id="storeName" placeholder="e.g. Ada's Fashion House" oninput="updateSlugPreview()">
+    <div class="url-preview" id="urlPreview">sellhub.ng/store/your-store-name</div>
+
+    <label>Business phone</label>
+    <input id="businessPhone" placeholder="e.g. 08012345678">
+
+    <label>WhatsApp number</label>
+    <input id="whatsappNumber" placeholder="e.g. 2348012345678">
+
+    <label>State</label>
+    <input id="state" placeholder="e.g. Lagos">
+
+    <label>City</label>
+    <input id="city" placeholder="e.g. Ikeja">
+
+    <label>Business address</label>
+    <input id="businessAddress" placeholder="e.g. 12 Allen Avenue, Ikeja">
+
+    <div class="btn-row">
+      <button class="btn ghost" onclick="backToStep1()">Back</button>
+      <button class="btn primary" onclick="submitOnboarding()">Create My Store</button>
+    </div>
+    <div class="msg" id="obMsg"></div>
+  </div>
+
+  <!-- STEP 3: DONE -->
+  <div class="step" id="step3">
+    <div class="done-box">
+      <div class="check">✓</div>
+      <h2>Your store is ready!</h2>
+      <p class="sub" style="margin-top:10px;">Here's your store link — share it anywhere.</p>
+      <div class="link" id="finalLink"></div>
+      <button class="btn primary" onclick="goToDashboard()">Go to my dashboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const seller = JSON.parse(localStorage.getItem('sellhub_seller') || 'null');
+  const authToken = localStorage.getItem('sellhub_seller_token');
+  if (!seller || !authToken) window.location.href = '/login';
+   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+  fetch('/api/seller/onboarding-status', { headers: authHeaders })
+    .then(r => r.json())
+    .then(result => {
+      if (result.ok && result.onboardingComplete) {
+        window.location.href = '/seller-dashboard';
+      }
+    })
+    .catch(() => {});
+
+  let selectedCategory = null;
+
+  document.querySelectorAll('.cat-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedCategory = card.dataset.cat;
+      document.getElementById('toStep2').disabled = false;
+    });
+  });
+
+  function slugify(text){
+    return text.toLowerCase().trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  }
+
+  function updateSlugPreview(){
+    const name = document.getElementById('storeName').value;
+    const slug = slugify(name) || 'your-store-name';
+    document.getElementById('urlPreview').textContent = 'sellhub.ng/store/' + slug;
+  }
+
+  function goToStep2(){
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step2').classList.add('active');
+    document.getElementById('p2').classList.add('active');
+  }
+
+  function backToStep1(){
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step1').classList.add('active');
+    document.getElementById('p2').classList.remove('active');
+  }
+
+  async function submitOnboarding(){
+    const storeName = document.getElementById('storeName').value.trim();
+    const businessPhone = document.getElementById('businessPhone').value.trim();
+    const whatsappNumber = document.getElementById('whatsappNumber').value.trim();
+    const state = document.getElementById('state').value.trim();
+    const city = document.getElementById('city').value.trim();
+    const businessAddress = document.getElementById('businessAddress').value.trim();
+    const msgEl = document.getElementById('obMsg');
+
+    if (!storeName || !businessPhone || !whatsappNumber || !state || !city || !businessAddress) {
+      msgEl.textContent = 'Please fill in every field before continuing.';
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+
+    const res = await fetch('/api/seller/onboarding', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ category: selectedCategory, storeName, businessPhone, whatsappNumber, state, city, businessAddress })
+    });
+    const result = await res.json();
+
+    if (!result.ok) {
+      msgEl.textContent = result.message;
+      msgEl.style.color = '#B4232C';
+      return;
+    }
+
+    document.getElementById('finalLink').textContent = result.storeUrl;
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step3').classList.add('active');
+  }
+
+  function goToDashboard(){
+    window.location.href = '/seller-dashboard';
+  }
+</script>
+</body>
+</html>

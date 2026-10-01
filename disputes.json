@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1790035849409,
+    "orderId": 1790032721490,
+    "customerEmail": "heisbigsamzy@gmail.com",
+    "sellerEmails": [
+      "joeibrahim077@gmail.com"
+    ],
+    "reason": "Wrong product",
+    "details": "",
+    "status": "Resolved",
+    "date": "2026-09-22T00:10:49.409Z",
+    "resolution": "",
+    "resolvedAt": "2026-09-25T00:36:32.123Z"
+  }
+]
