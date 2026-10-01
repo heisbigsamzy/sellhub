@@ -2032,7 +2032,7 @@ const server = http.createServer((req, res) => {
         await sendOTPEmail(formData.email, code);
         sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
       } catch (err) {
-        console.log('ERROR:', err.message);
+        console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
         sendJSON(res, { ok: false, message: 'Could not send email.' });
       }
     });
@@ -2074,7 +2074,7 @@ const server = http.createServer((req, res) => {
         await sendOTPEmail(formData.email, code);
         sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
       } catch (err) {
-        console.log('ERROR:', err.message);
+        console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
         sendJSON(res, { ok: false, message: 'Could not send email.' });
       }
     });
@@ -2235,7 +2235,7 @@ const server = http.createServer((req, res) => {
         await sendOTPEmail(email, code);
         sendJSON(res, { ok: true, message: 'Code sent! Check your email.' });
       } catch (err) {
-        console.log('ERROR:', err.message);
+        console.log('ERROR sending OTP email:', err.code || '', err.command || '', err.responseCode || '', err.message);
         sendJSON(res, { ok: false, message: 'Could not send email.' });
       }
     });
