@@ -1,94 +1,78 @@
-const nodemailer = require('nodemailer');
-const dns = require('dns');
+// Email sending — via SMTP2GO (https://smtp2go.com), a dedicated
+// transactional email service reached over plain HTTPS.
+//
+// We tried sending through a personal Gmail account before. Gmail's SMTP
+// server isn't built for a live website to send mail from 24/7 — it works
+// sometimes and then silently stops (connection blocks, intermittent
+// "suspicious sign-in" flags on cloud servers, daily sending caps meant for
+// a person, not a business). We also tried Resend, a proper email API, but
+// its free tier only allows sending to your own address until you verify a
+// full domain — not workable without owning a domain.
+//
+// SMTP2GO's free plan lets you verify a SINGLE EMAIL ADDRESS (no domain
+// needed) and then send to any recipient, with 1,000 emails/month free,
+// forever. It's a plain HTTPS POST, same as this app's existing calls to
+// Paystack, so there's no SMTP/IPv6 connection issue like before.
+//
+// One-time setup:
+//   1. Create a free account at https://www.smtp2go.com
+//   2. Go to Sending -> Verified Senders -> Single Sender Emails, and
+//      verify an email address you own (e.g. your Gmail address) — SMTP2GO
+//      emails you a confirmation link, click it.
+//   3. Go to Settings -> API Keys -> create a new key.
+//   4. In Render -> Environment, add:
+//        SMTP2GO_API_KEY   = the key from step 3
+//        SENDER_EMAIL      = the exact email address you verified in step 2
 
-// Render's network has no outbound IPv6 route, so any connection attempt
-// over IPv6 fails instantly with ENETUNREACH. Node/nodemailer sometimes
-// still pick the IPv6 address for smtp.gmail.com despite setting
-// family:4/ipv4first (that setting isn't always honored depending on the
-// Node version's internal DNS resolution path). To make this unambiguous,
-// we resolve the IPv4 address ourselves and connect to that literal IP,
-// while keeping the real hostname for TLS certificate validation (SNI).
+const SMTP2GO_API_KEY = process.env.SMTP2GO_API_KEY;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
-const GMAIL_ADDRESS = process.env.GMAIL_ADDRESS;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-if (!GMAIL_ADDRESS || !GMAIL_APP_PASSWORD) {
+if (!SMTP2GO_API_KEY || !SENDER_EMAIL) {
   console.warn(
-    '⚠️  GMAIL_ADDRESS / GMAIL_APP_PASSWORD are not set. Emails will fail to send.\n' +
-    '   Create a .env file (see .env.example) and start the server with: npm start'
+    '⚠️  SMTP2GO_API_KEY / SENDER_EMAIL are not set. Emails will fail to send.\n' +
+    '   Sign up free at https://www.smtp2go.com, verify a single sender email,\n' +
+    '   create an API key, and add both to Render -> Environment.'
   );
 }
 
-function resolveIPv4(hostname) {
-  return new Promise((resolve, reject) => {
-    dns.resolve4(hostname, (err, addresses) => {
-      if (err || !addresses || !addresses.length) return reject(err || new Error('No IPv4 address found'));
-      resolve(addresses[0]);
-    });
+async function sendViaSmtp2go(toEmail, subject, html) {
+  const res = await fetch('https://api.smtp2go.com/v3/email/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      'X-Smtp2go-Api-Key': SMTP2GO_API_KEY,
+    },
+    body: JSON.stringify({
+      api_key: SMTP2GO_API_KEY,
+      sender: `SellHub <${SENDER_EMAIL}>`,
+      to: [toEmail],
+      subject,
+      html_body: html,
+    }),
   });
-}
 
-// Cache the resolved IP for a few minutes so we're not doing a fresh DNS
-// lookup on every single email.
-let cachedIp = null;
-let cachedIpAt = 0;
-const IP_CACHE_MS = 5 * 60 * 1000;
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* ignore */ }
 
-async function getTransporter() {
-  const now = Date.now();
-  if (!cachedIp || now - cachedIpAt > IP_CACHE_MS) {
-    cachedIp = await resolveIPv4('smtp.gmail.com');
-    cachedIpAt = now;
+  const failed = !res.ok || (data && data.data && data.data.failed > 0);
+  if (failed) {
+    throw new Error(`SMTP2GO API error (${res.status}): ${JSON.stringify(data)}`);
   }
-  return nodemailer.createTransport({
-    host: cachedIp,
-    port: 465,
-    secure: true,
-    tls: { servername: 'smtp.gmail.com' }, // keep real hostname for TLS/SNI + cert check
-    auth: { user: GMAIL_ADDRESS, pass: GMAIL_APP_PASSWORD },
-    connectionTimeout: 20000,
-    greetingTimeout: 20000,
-    socketTimeout: 20000,
-  });
-}
 
-// Gmail occasionally has a brief hiccup connecting from a cloud server even
-// with everything configured correctly. Rather than fail the user's signup
-// on the first blip, retry a couple of times with a short pause first.
-function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-async function sendWithRetry(mailOptions, attempts = 3) {
-  let lastErr;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const transporter = await getTransporter();
-      return await transporter.sendMail(mailOptions);
-    } catch (err) {
-      lastErr = err;
-      console.log(`Email send attempt ${i + 1} of ${attempts} failed:`, err.code || '', err.message);
-      cachedIp = null; // force a fresh DNS lookup on retry, in case the cached IP is bad
-      if (i < attempts - 1) await wait(1500 * (i + 1)); // 1.5s, then 3s
-    }
-  }
-  throw lastErr;
+  return data;
 }
 
 function sendOTPEmail(toEmail, code) {
-  return sendWithRetry({
-    from: `"SellHub" <${GMAIL_ADDRESS}>`,
-    to: toEmail,
-    subject: 'Your SellHub verification code',
-    html: `<p>Your SellHub verification code is:</p><h1 style="letter-spacing:4px;">${code}</h1><p>This code expires in 10 minutes.</p>`
-  });
+  return sendViaSmtp2go(
+    toEmail,
+    'Your SellHub verification code',
+    `<p>Your SellHub verification code is:</p><h1 style="letter-spacing:4px;">${code}</h1><p>This code expires in 10 minutes.</p>`
+  );
 }
 
 function sendEmail(toEmail, subject, html) {
-  return sendWithRetry({
-    from: `"SellHub" <${GMAIL_ADDRESS}>`,
-    to: toEmail,
-    subject,
-    html
-  });
+  return sendViaSmtp2go(toEmail, subject, html);
 }
 
 module.exports = { sendOTPEmail, sendEmail };
