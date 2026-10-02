@@ -8,82 +8,135 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230F7A4A'/%3E%3Ctext x='32' y='44' font-size='34' font-family='sans-serif' font-weight='800' fill='white' text-anchor='middle'%3E%E2%82%A6%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --green-900:#0B3D28;
     --green-700:#0F7A4A;
+    --green-600:#149A5C;
+    --green-400:#3FC17F;
+    --mint-100:#EAF7EF;
     --mint-50:#F5FBF7;
     --ink:#0B0F0C;
     --gray-600:#5B6B62;
     --gray-300:#DCE6E0;
     --white:#FFFFFF;
+    --radius-lg:24px;
+    --radius-sm:12px;
+    --radius-pill:100px;
+    --shadow-soft:0 20px 60px -20px rgba(11,15,12,0.25);
   }
   *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
   body{
     margin:0;
     font-family:'Manrope',sans-serif;
-    background:var(--mint-50);
+    background:
+      radial-gradient(700px 420px at 86% -8%, rgba(63,193,127,0.08), transparent 60%),
+      var(--mint-50);
     color:var(--ink);
-    line-height:1.65;
+    line-height:1.7;
+    overflow-x:hidden;
   }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
+  }
+  a:focus-visible{outline:2.5px solid var(--green-600); outline-offset:2px; border-radius:6px;}
   header{
-    background:var(--green-900);
-    color:var(--white);
-    padding:28px 20px;
+    background:rgba(255,255,255,0.86);
+    backdrop-filter:blur(14px) saturate(160%);
+    border-bottom:1px solid rgba(11,61,40,0.08);
+    position:sticky; top:0; z-index:10;
+    padding:16px 24px;
   }
-  header a{
-    color:var(--white);
+  .nav{max-width:720px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  header a.logo{
+    display:flex; align-items:center; gap:10px;
+    color:var(--ink);
     text-decoration:none;
-    font-weight:800;
-    font-size:1.2rem;
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.15rem;
   }
+  .logo-mark{width:28px; height:28px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); box-shadow:0 6px 14px -4px rgba(15,122,74,0.4); position:relative; flex-shrink:0;}
+  .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px;}
+  header .back-link{font-size:0.85rem; font-weight:700; color:var(--green-700); text-decoration:none;}
+  header .back-link:hover{color:var(--green-900);}
   main{
-    max-width:760px;
+    max-width:680px;
     margin:0 auto;
-    padding:40px 20px 80px;
+    padding:48px 20px 80px;
   }
   h1{
-    font-size:1.8rem;
-    margin-bottom:4px;
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    letter-spacing:-0.01em;
+    font-size:2rem;
+    margin:0 0 10px;
+    color:var(--ink);
   }
   .updated{
-    color:var(--gray-600);
-    font-size:0.9rem;
+    display:inline-block;
+    color:var(--green-900);
+    background:var(--mint-100);
+    font-size:0.82rem;
+    font-weight:700;
+    padding:6px 14px;
+    border-radius:var(--radius-pill);
     margin-bottom:32px;
   }
   h2{
-    font-size:1.15rem;
-    color:var(--green-700);
-    margin-top:36px;
-    margin-bottom:10px;
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.25rem;
+    color:var(--green-900);
+    margin-top:40px;
+    margin-bottom:12px;
+    letter-spacing:-0.005em;
   }
   p, li{
     color:#2A332E;
-    font-size:0.98rem;
+    font-size:1rem;
+    max-width:62ch;
   }
+  li{margin-bottom:8px;}
+  li:last-child{margin-bottom:0;}
   ul{
     padding-left:20px;
+    margin-top:0;
   }
   a{
     color:var(--green-700);
+    font-weight:600;
   }
+  a:hover{color:var(--green-900);}
   .box{
     background:var(--white);
     border:1px solid var(--gray-300);
-    border-radius:16px;
-    padding:28px 28px 8px;
+    border-radius:var(--radius-lg);
+    padding:40px 40px 16px;
+    box-shadow:var(--shadow-soft);
+  }
+  @media (max-width:640px){
+    main{padding:32px 16px 64px;}
+    .box{padding:28px 22px 12px;}
+    h1{font-size:1.65rem;}
   }
   footer{
     text-align:center;
     color:var(--gray-600);
     font-size:0.85rem;
-    padding:24px;
+    padding:28px 20px 40px;
   }
 </style>
 </head>
 <body>
-<header><a href="/">SellHub Market</a></header>
+<header>
+  <div class="nav">
+    <a class="logo" href="/"><span class="logo-mark"></span>SellHub Market</a>
+    <a class="back-link" href="/">Back to home</a>
+  </div>
+</header>
 <main>
   <div class="box">
     <h1>Privacy Policy</h1>
