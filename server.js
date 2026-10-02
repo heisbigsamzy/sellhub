@@ -222,6 +222,10 @@ function creditPaystackPayment(reference, tx) {
   customer.transactions.unshift({ type: 'deposit', amount: payment.amount, reference, date: payment.creditedAt });
   writeJSON('customers.json', customers);
 
+  notifyAdmin(
+    `💰 Deposit received: ₦${payment.amount.toLocaleString()} from ${customer.fullName || customer.email} (${customer.email}). New wallet balance: ₦${customer.walletBalance.toLocaleString()}.`
+  );
+
   return { ok: true, alreadyCredited: false };
 }
 
