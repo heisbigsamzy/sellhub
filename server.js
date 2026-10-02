@@ -1090,7 +1090,7 @@ const server = http.createServer((req, res) => {
       if (!seller) return sendJSON(res, { ok: false, message: 'Seller not found.' });
 
       seller.warnings = seller.warnings || [];
-      seller.warnings.push({ message, date: new Date().toISOString() });
+      seller.warnings.push({ id: Date.now(), message, date: new Date().toISOString(), seen: false });
       writeJSON('sellers.json', sellers);
 
       try {
@@ -2004,6 +2004,27 @@ const server = http.createServer((req, res) => {
     const seller = sellers.find(s => s.email === session.email);
     if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
     return sendJSON(res, { ok: true, warnings: (seller.warnings || []).slice().reverse() });
+  }
+
+  // Marks a seller's warning(s) as seen, so an already-read warning doesn't
+  // keep popping up on every dashboard load. Pass a specific warningId to
+  // mark just that one, or omit it to mark all of this seller's warnings.
+  if (req.method === 'POST' && req.url === '/api/seller/warnings/mark-seen') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ warningId }) => {
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+      let changed = false;
+      (seller.warnings || []).forEach(w => {
+        if (warningId && w.id !== warningId) return;
+        if (!w.seen) { w.seen = true; changed = true; }
+      });
+      if (changed) writeJSON('sellers.json', sellers);
+      sendJSON(res, { ok: true });
+    });
+    return;
   }
 
   // Lets the seller see reminders (and anything else routed this way in the

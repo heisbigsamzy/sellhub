@@ -386,7 +386,18 @@
     <button class="modal-close" onclick="closeModal('alertsModal')">&times;</button>
     <h2>👋 Before you continue</h2>
     <div id="alertsModalBody"></div>
-    <button class="modal-btn" onclick="closeModal('alertsModal')">Got it</button>
+    <button class="modal-btn" onclick="closeAlertsModal()">Got it</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="welcomeVerifyModal">
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="closeModal('welcomeVerifyModal')">&times;</button>
+    <h2>🎉 Welcome to SellHub!</h2>
+    <p style="font-size:14px; line-height:1.6; color:var(--gray-700,#555);">
+      Your seller account has been created. Before you can start posting products, we need to verify your identity.
+    </p>
+    <a href="/verification-center" class="modal-btn" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">Click here to verify your account</a>
   </div>
 </div>
 
@@ -1041,7 +1052,14 @@
       addBtn.style.opacity = isVerified ? '1' : '0.5';
       addBtn.style.cursor = isVerified ? 'pointer' : 'not-allowed';
     }
+    // Welcome/verify popup: shows on every load until the seller is verified,
+    // then never again — matches the one-time "warnings" behavior below.
+    if (!isVerified) {
+      openModal('welcomeVerifyModal');
+    }
   }
+
+  let unseenWarningIds = [];
 
   async function checkAlertsPopup(){
     const [warningsRes, notifRes] = await Promise.all([
@@ -1051,8 +1069,10 @@
     const warningsResult = await warningsRes.json();
     const notifResult = await notifRes.json();
 
-    const warnings = warningsResult.ok ? (warningsResult.warnings || []) : [];
+    const warnings = warningsResult.ok ? (warningsResult.warnings || []).filter(w => !w.seen) : [];
     const reminders = notifResult.ok ? (notifResult.notifications || []).filter(n => !n.read) : [];
+
+    unseenWarningIds = warnings.map(w => w.id);
 
     if (warnings.length === 0 && reminders.length === 0) return;
 
@@ -1074,6 +1094,19 @@
       `).join('')}
     `;
     openModal('alertsModal');
+  }
+
+  // Once the seller has actually seen the warning (closed the "Got it"
+  // modal), it's marked seen server-side so it never pops up again — only a
+  // brand-new warning from the admin will trigger the popup after this.
+  async function closeAlertsModal(){
+    closeModal('alertsModal');
+    if (unseenWarningIds.length) {
+      await Promise.all(unseenWarningIds.map(id =>
+        authedFetch('/api/seller/warnings/mark-seen', { method: 'POST', body: JSON.stringify({ warningId: id }) })
+      ));
+      unseenWarningIds = [];
+    }
   }
 
   async function dismissReminder(notificationId){
