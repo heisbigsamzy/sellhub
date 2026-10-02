@@ -45,6 +45,25 @@ const pendingSignups = {};
 const pendingSellerSignups = {};
 const resetCodes = {};
 
+// These three are the OTP codes people are actively typing in right now
+// (signup, seller signup, password reset). They used to live ONLY in
+// memory, which meant a Render restart/redeploy/idle spin-down between
+// "code sent" and "code entered" silently wiped them — the next request
+// would get "❌ Wrong code" for a code that was actually correct. That's
+// the most likely explanation for "sometimes it says incorrect while it
+// works sometimes": it depends on whether the free-tier instance happened
+// to restart in the minute or two it took the person to find the email
+// (often in spam — see mailer.js) and type the code in.
+// Backed up to the same free Upstash store as the data files (a no-op
+// until that's configured — see dataBackup.js) and restored on boot, so
+// these survive exactly like everything else now does.
+const CODE_STATE_FILES = ['pendingSignups.json', 'pendingSellerSignups.json', 'resetCodes.json'];
+function persistCodeState() {
+  backupFile('pendingSignups.json', JSON.stringify(pendingSignups));
+  backupFile('pendingSellerSignups.json', JSON.stringify(pendingSellerSignups));
+  backupFile('resetCodes.json', JSON.stringify(resetCodes));
+}
+
 // ---------- ADMIN WHATSAPP ALERTS ----------
 // Your own WhatsApp number, so you (the admin) get pinged the moment
 // something needs your attention: a new verification submission, a
@@ -2227,6 +2246,7 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       pendingSignups[formData.email] = { code, formData };
+      persistCodeState();
       // Respond immediately — don't make the person wait on the real Gmail
       // connection, which can take a couple of seconds. The email is sent
       // right after, in the background.
@@ -2248,6 +2268,7 @@ const server = http.createServer((req, res) => {
       customers.push({ ...pending.formData, password: hashedPassword });
       writeJSON('customers.json', customers);
       delete pendingSignups[email];
+      persistCodeState();
       const token = createSession(pending.formData.email, 'customer');
       sendJSON(res, {
         ok: true, message: '✅ Account created!', token,
@@ -2271,6 +2292,7 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       pendingSellerSignups[formData.email] = { code, formData };
+      persistCodeState();
       // Respond immediately — see note in /api/signup above.
       sendJSON(res, { ok: true, message: 'Code sent! Check your email — it may take a few seconds to arrive.' });
       sendOTPEmail(formData.email, code).catch(err => {
@@ -2290,6 +2312,7 @@ const server = http.createServer((req, res) => {
       sellers.push({ ...pending.formData, password: hashedPassword });
       writeJSON('sellers.json', sellers);
       delete pendingSellerSignups[email];
+      persistCodeState();
       const token = createSession(pending.formData.email, 'seller');
       sendJSON(res, {
         ok: true, message: '✅ Store created!', token,
@@ -2434,6 +2457,7 @@ const server = http.createServer((req, res) => {
       }
       const code = crypto.randomInt(100000, 999999).toString();
       resetCodes[email] = code;
+      persistCodeState();
       // Respond immediately — see note in /api/signup above.
       sendJSON(res, { ok: true, message: 'Code sent! Check your email — it may take a few seconds to arrive.' });
       sendOTPEmail(email, code).catch(err => {
@@ -2455,6 +2479,7 @@ const server = http.createServer((req, res) => {
       if (customer) { customer.password = hashedPassword; writeJSON('customers.json', customers); }
       if (seller) { seller.password = hashedPassword; writeJSON('sellers.json', sellers); }
       delete resetCodes[email];
+      persistCodeState();
       sendJSON(res, { ok: true, message: '✅ Password updated! You can now log in with it.' });
     });
     return;
@@ -2472,6 +2497,17 @@ const server = http.createServer((req, res) => {
 // the git repo.
 restoreAllFiles((fileName, contents) => {
   fs.writeFileSync(path.join(DATA_DIR, fileName), contents);
-}, DATA_FILES).finally(() => {
-  server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
-});
+}, DATA_FILES)
+  // Also pull back any in-flight signup/reset codes from before the restart,
+  // straight into memory (these never lived on disk, so no fs write here).
+  .then(() => restoreAllFiles((fileName, contents) => {
+    try {
+      const parsed = JSON.parse(contents);
+      if (fileName === 'pendingSignups.json') Object.assign(pendingSignups, parsed);
+      if (fileName === 'pendingSellerSignups.json') Object.assign(pendingSellerSignups, parsed);
+      if (fileName === 'resetCodes.json') Object.assign(resetCodes, parsed);
+    } catch (e) { /* ignore a corrupt/empty backup, start fresh */ }
+  }, CODE_STATE_FILES))
+  .finally(() => {
+    server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
+  });
