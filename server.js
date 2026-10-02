@@ -898,6 +898,11 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
     const sellers = readJSON('sellers.json');
+
+    // Newest submission first, so an admin always sees what just came in at
+    // the top instead of having to scroll past everything older.
+    const latestOf = (...isoStrings) => Math.max(0, ...isoStrings.filter(Boolean).map(d => new Date(d).getTime()));
+
     const pending = sellers
       .filter(s => {
         const v = s.verification || {};
@@ -906,8 +911,11 @@ const server = http.createServer((req, res) => {
       .map(s => ({
         email: s.email,
         businessName: s.businessName,
-        verification: s.verification
-      }));
+        verification: s.verification,
+        _sortKey: latestOf(s.verification.identitySubmittedAt, s.verification.bankSubmittedAt, s.verification.businessSubmittedAt)
+      }))
+      .sort((a, b) => b._sortKey - a._sortKey)
+      .map(({ _sortKey, ...rest }) => rest);
 
     // Once a submission is decided (Verified or Rejected) it drops out of the
     // "pending" list above, but the admin should still be able to pull up the
@@ -922,8 +930,16 @@ const server = http.createServer((req, res) => {
       .map(s => ({
         email: s.email,
         businessName: s.businessName,
-        verification: s.verification
-      }));
+        verification: s.verification,
+        _sortKey: latestOf(
+          s.verification.identityDecidedAt, s.verification.bankDecidedAt, s.verification.businessDecidedAt,
+          // Older records decided before decision timestamps existed fall
+          // back to their submission time, so they still sort sensibly.
+          s.verification.identitySubmittedAt, s.verification.bankSubmittedAt, s.verification.businessSubmittedAt
+        )
+      }))
+      .sort((a, b) => b._sortKey - a._sortKey)
+      .map(({ _sortKey, ...rest }) => rest);
 
     sendJSON(res, { ok: true, sellers: pending, decidedSellers: decided });
     return;
@@ -944,6 +960,7 @@ const server = http.createServer((req, res) => {
       if (!seller || !seller.verification) return sendJSON(res, { ok: false, message: 'Seller not found.' });
 
       seller.verification[`${type}Status`] = decision;
+      seller.verification[`${type}DecidedAt`] = new Date().toISOString();
       writeJSON('sellers.json', sellers);
 
       if (decision === 'Verified') {
@@ -996,7 +1013,9 @@ const server = http.createServer((req, res) => {
         businessStatus: v.businessStatus || 'Not submitted'
       };
     });
-    sendJSON(res, { ok: true, sellers: list });
+    // Newest-registered seller first, same convention as every other admin
+    // list (withdrawals, disputes, verifications).
+    sendJSON(res, { ok: true, sellers: list.reverse() });
     return;
   }
 
