@@ -295,6 +295,17 @@ function readRawBody(req) {
   });
 }
 
+// ---------- EMAIL NORMALIZATION ----------
+// Every account lookup (signup duplicate-check, login, password reset,
+// Google sign-in) has to use the exact same key for the exact same person,
+// or two different-cased/whitespace-padded typings of one email silently
+// become two different accounts. Trimming + lowercasing at every entry
+// point — not just storage — is what makes "Sam@Gmail.com" at signup and
+// "sam@gmail.com" at login resolve to the same record.
+function normalizeEmail(email) {
+  return (email || '').trim().toLowerCase();
+}
+
 // ---------- SESSIONS ----------
 // In-memory session store: token -> { email, accountType, expiresAt }.
 // Resets when the server restarts — fine for an MVP, but note that a real
@@ -2173,6 +2184,7 @@ const server = http.createServer((req, res) => {
   // ---------- CUSTOMER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/signup') {
     readBody(req).then(async (formData) => {
+      formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
       if (customers.some(c => c.email === formData.email)) {
@@ -2196,6 +2208,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/verify-signup') {
     readBody(req).then(async ({ email, code }) => {
+      email = normalizeEmail(email);
       const pending = pendingSignups[email];
       if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const customers = readJSON('customers.json');
@@ -2215,6 +2228,7 @@ const server = http.createServer((req, res) => {
   // ---------- SELLER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/seller-signup') {
     readBody(req).then(async (formData) => {
+      formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
       if (sellers.some(s => s.email === formData.email)) {
@@ -2236,6 +2250,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/verify-seller-signup') {
     readBody(req).then(async ({ email, code }) => {
+      email = normalizeEmail(email);
       const pending = pendingSellerSignups[email];
       if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const sellers = readJSON('sellers.json');
@@ -2266,7 +2281,8 @@ const server = http.createServer((req, res) => {
         return sendJSON(res, { ok: false, message: 'Could not verify Google sign-in. Please try again.' });
       }
 
-      const { email, fullName } = googleUser;
+      const email = normalizeEmail(googleUser.email);
+      const { fullName } = googleUser;
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
 
@@ -2337,6 +2353,7 @@ const server = http.createServer((req, res) => {
   // ---------- LOGIN ----------
   if (req.method === 'POST' && req.url === '/api/login') {
     readBody(req).then(async ({ email, password }) => {
+      email = normalizeEmail(email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
 
@@ -2377,6 +2394,7 @@ const server = http.createServer((req, res) => {
   // ---------- FORGOT PASSWORD ----------
   if (req.method === 'POST' && req.url === '/api/request-reset') {
     readBody(req).then(async ({ email }) => {
+      email = normalizeEmail(email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
       if (!customers.some(c => c.email === email) && !sellers.some(s => s.email === email)) {
@@ -2395,6 +2413,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/reset-password') {
     readBody(req).then(async ({ email, code, newPassword }) => {
+      email = normalizeEmail(email);
       if (resetCodes[email] !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
