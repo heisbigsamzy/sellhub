@@ -119,6 +119,9 @@
   .withdraw-form{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:24px; max-width:440px; box-shadow:var(--shadow-resting);}
   .withdraw-form label{font-size:12.5px; font-weight:700; margin-top:14px; display:block; color:var(--ink);}
   .withdraw-form input{width:100%; padding:12px 14px; margin-top:7px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; transition:border-color .2s;}
+  .search-input{width:100%; padding:12px 18px; margin-bottom:18px; border-radius:var(--radius-pill); border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; outline:none; transition:border-color .2s;}
+  .search-input:focus{border-color:var(--green-600);}
+  .badge.neutral{background:#F2F2F2; color:var(--gray-600);}
   .withdraw-form input:focus{outline:none; border-color:var(--green-600);}
   .withdraw-form select{
     width:100%; padding:12px 38px 12px 14px; margin-top:7px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300);
@@ -175,6 +178,7 @@
     <div class="sidebar-badge">Admin</div>
 
     <div class="nav-item active" data-tab="overview" onclick="showTab('overview')"><span class="nav-icon">&#9707;</span>Overview</div>
+    <div class="nav-item" data-tab="sellers" onclick="showTab('sellers')"><span class="nav-icon">&#128100;</span>Sellers</div>
     <div class="nav-item" data-tab="wallet" onclick="showTab('wallet')"><span class="nav-icon">&#8358;</span>Platform Wallet</div>
     <div class="nav-item" data-tab="withdrawals" onclick="showTab('withdrawals')"><span class="nav-icon">&#8615;</span>Seller Withdrawals<span class="nav-badge" id="navBadgeWithdrawals" style="display:none;"></span></div>
     <div class="nav-item" data-tab="verifications" onclick="showTab('verifications')"><span class="nav-icon">&#10003;</span>Verifications<span class="nav-badge" id="navBadgeVerifications" style="display:none;"></span></div>
@@ -193,6 +197,13 @@
       <div class="panel active" id="panel-overview">
         <h1 class="page-title">Overview</h1>
         <div class="stat-row" id="statRow"></div>
+      </div>
+
+      <div class="panel" id="panel-sellers">
+        <h1 class="page-title">Sellers</h1>
+        <p style="font-size:13px; color:var(--gray-600); margin:-6px 0 16px;">Every seller's full registration profile in one place — not just what they submitted for verification.</p>
+        <input id="sellerSearch" type="text" class="search-input" placeholder="Search by name, store, or email…" oninput="renderSellers()">
+        <div id="sellersList"></div>
       </div>
 
       <div class="panel" id="panel-wallet">
@@ -711,6 +722,67 @@
     `).join('');
   }
 
+  let allSellers = [];
+
+  async function loadSellers(){
+    const res = await authedFetch('/api/admin/sellers');
+    const r = await res.json();
+    allSellers = r.ok ? r.sellers : [];
+    renderSellers();
+  }
+
+  function sellerVerificationBadge(status){
+    if (status === 'Verified') return `<span class="badge approved">Verified</span>`;
+    if (status === 'Pending review') return `<span class="badge pending">Pending review</span>`;
+    if (status === 'Rejected') return `<span class="badge rejected">Rejected</span>`;
+    return `<span class="badge neutral">Not submitted</span>`;
+  }
+
+  function renderSellers(){
+    const list = document.getElementById('sellersList');
+    if (!list) return;
+    const q = (document.getElementById('sellerSearch')?.value || '').toLowerCase().trim();
+    const filtered = !q ? allSellers : allSellers.filter(s =>
+      (s.fullName || '').toLowerCase().includes(q) ||
+      (s.businessName || '').toLowerCase().includes(q) ||
+      (s.storeName || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q)
+    );
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="empty"><h3>No sellers found</h3></div>`;
+      return;
+    }
+    list.innerHTML = filtered.map(s => `
+      <div class="card">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${s.businessName || s.storeName || s.email}${s.suspended ? ' <span class="badge rejected">Suspended</span>' : ''}</div>
+            <div class="card-sub">${s.storeName ? 'Store: ' + s.storeName + (s.category ? ' · ' + s.category : '') : (s.category || 'Store setup not completed yet')}</div>
+          </div>
+        </div>
+        <div class="row"><span>Full name</span><span>${s.fullName || '—'}</span></div>
+        <div class="row"><span>Email</span><span>${s.email}</span></div>
+        <div class="row"><span>Phone number</span><span>${s.phone || '—'}</span></div>
+        <div class="row"><span>Business phone</span><span>${s.businessPhone || '—'}</span></div>
+        <div class="row"><span>WhatsApp number</span><span>${s.whatsappNumber || '—'}</span></div>
+        <div class="row"><span>State / City</span><span>${[s.state, s.city].filter(Boolean).join(', ') || '—'}</span></div>
+        <div class="row"><span>Address</span><span>${s.businessAddress || '—'}</span></div>
+        <div class="row"><span>Store onboarding</span><span>${s.onboardingComplete ? 'Complete' : 'Incomplete'}</span></div>
+        <div class="row"><span>Wallet balance</span><span>${money(s.walletBalance)}</span></div>
+        <div class="row"><span>Identity verification</span><span>${sellerVerificationBadge(s.identityStatus)}</span></div>
+        <div class="row"><span>Bank verification</span><span>${sellerVerificationBadge(s.bankStatus)}</span></div>
+        <div class="row"><span>Business (CAC) verification</span><span>${sellerVerificationBadge(s.businessStatus)}</span></div>
+        <div class="row" style="border-bottom:none;"><span>Warnings sent</span><span>${s.warningCount}</span></div>
+        <div class="actions">
+          <button class="btn approve" onclick="warnSeller('${s.email}')">Warn Seller</button>
+          ${s.suspended
+            ? `<button class="btn approve" onclick="suspendSeller('${s.email}', false)">Reinstate</button>`
+            : `<button class="btn reject" onclick="suspendSeller('${s.email}', true)">Suspend Seller</button>`}
+        </div>
+      </div>
+    `).join('');
+  }
+
   async function warnSeller(email){
     const message = prompt('Warning message to send to this seller:');
     if (!message) return;
@@ -718,6 +790,7 @@
     const r = await res.json();
     alert(r.message);
     loadDisputes();
+    loadSellers();
   }
 
   async function suspendSeller(email, suspended){
@@ -728,6 +801,7 @@
     const r = await res.json();
     alert(r.message);
     loadDisputes();
+    loadSellers();
   }
 
   async function resolveDispute(id){
@@ -745,6 +819,7 @@
   }
 
   loadStats();
+  loadSellers();
   loadAdminWallet();
   loadWithdrawals();
   loadVerifications();

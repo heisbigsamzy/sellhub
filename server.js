@@ -961,6 +961,45 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---------- ADMIN: FULL SELLER DIRECTORY ----------
+  // Gives admins the seller's complete registration profile in one place —
+  // not just what was submitted for identity/bank/business verification,
+  // but everything captured at signup and store onboarding (name, contact
+  // numbers, address, store details). Document images are left out here
+  // (they're already viewable in the Verifications tab) to keep this list
+  // light even with many sellers.
+  if (req.method === 'GET' && req.url === '/api/admin/sellers') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const list = sellers.map(s => {
+      const v = s.verification || {};
+      return {
+        email: s.email,
+        fullName: s.fullName || '',
+        businessName: s.businessName || '',
+        storeName: s.storeName || '',
+        storeSlug: s.storeSlug || '',
+        category: s.category || '',
+        phone: s.phone || '',
+        businessPhone: s.businessPhone || '',
+        whatsappNumber: s.whatsappNumber || '',
+        state: s.state || '',
+        city: s.city || '',
+        businessAddress: s.businessAddress || '',
+        onboardingComplete: !!s.onboardingComplete,
+        walletBalance: s.walletBalance || 0,
+        suspended: !!s.suspended,
+        warningCount: (s.warnings || []).length,
+        identityStatus: v.identityStatus || 'Not submitted',
+        bankStatus: v.bankStatus || 'Not submitted',
+        businessStatus: v.businessStatus || 'Not submitted'
+      };
+    });
+    sendJSON(res, { ok: true, sellers: list });
+    return;
+  }
+
   // ---------- ADMIN: DISPUTES ----------
   if (req.method === 'GET' && req.url === '/api/admin/disputes') {
     const session = requireAuth(req, res, 'admin');
