@@ -1443,16 +1443,113 @@ const server = http.createServer((req, res) => {
   }
 
   // ---------- PROFILE ----------
-  if (req.method === 'GET' && req.url.startsWith('/api/profile')) {
+  if (req.method === 'GET' && req.url === '/api/profile') {
     const session = requireAuth(req, res, 'customer');
     if (!session) return;
     const customers = readJSON('customers.json');
     const customer = customers.find(c => c.email === session.email);
     if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
-    return sendJSON(res, { ok: true, savedAddress: customer.savedAddress || null });
+    return sendJSON(res, {
+      ok: true,
+      fullName: customer.fullName || '',
+      email: customer.email,
+      phone: customer.phone || '',
+      savedAddress: customer.savedAddress || null
+    });
+  }
+
+  // Lets a customer update the personal details they gave at signup (full
+  // name, phone) and keeps their saved delivery address in sync with it, so
+  // the "Profile" tab and the checkout address autofill never drift apart.
+  // Email is left out on purpose — it's the account's login identity.
+  if (req.method === 'POST' && req.url === '/api/profile/update') {
+    const session = requireAuth(req, res, 'customer');
+    if (!session) return;
+    readBody(req).then(({ fullName, phone, address, state, city }) => {
+      if (!fullName || !fullName.trim()) {
+        return sendJSON(res, { ok: false, message: 'Full name is required.' });
+      }
+      const customers = readJSON('customers.json');
+      const customer = customers.find(c => c.email === session.email);
+      if (!customer) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      customer.fullName = fullName.trim();
+      customer.phone = phone || '';
+      customer.savedAddress = {
+        address: address || '',
+        state: state || '',
+        city: city || '',
+        phone: phone || ''
+      };
+      writeJSON('customers.json', customers);
+      sendJSON(res, { ok: true, message: 'Profile updated.' });
+    });
+    return;
   }
 
   // ================= SELLER DASHBOARD =================
+
+  // ---------- SELLER PROFILE ----------
+  // Everything the seller gave us at signup and store onboarding, in one
+  // place — mirrors what the admin dashboard's Sellers tab shows, just
+  // scoped to the logged-in seller's own account.
+  if (req.method === 'GET' && req.url === '/api/seller/profile') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    const sellers = readJSON('sellers.json');
+    const seller = sellers.find(s => s.email === session.email);
+    if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+    return sendJSON(res, {
+      ok: true,
+      fullName: seller.fullName || '',
+      businessName: seller.businessName || '',
+      email: seller.email,
+      phone: seller.phone || '',
+      category: seller.category || '',
+      storeName: seller.storeName || '',
+      storeSlug: seller.storeSlug || '',
+      businessPhone: seller.businessPhone || '',
+      whatsappNumber: seller.whatsappNumber || '',
+      state: seller.state || '',
+      city: seller.city || '',
+      businessAddress: seller.businessAddress || '',
+      onboardingComplete: !!seller.onboardingComplete
+    });
+  }
+
+  // Lets a seller keep their own registration details current. Store
+  // identity (category, store name/slug) is deliberately left out here —
+  // every product already carries its own copy of the store name/slug from
+  // when it was listed, so renaming the store here would silently mismatch
+  // existing listings. Those live in the onboarding/store-profile flow
+  // instead, which the seller already uses deliberately for that.
+  if (req.method === 'POST' && req.url === '/api/seller/profile/update') {
+    const session = requireAuth(req, res, 'seller');
+    if (!session) return;
+    readBody(req).then(({ fullName, businessName, phone, businessPhone, whatsappNumber, state, city, businessAddress }) => {
+      if (!fullName || !fullName.trim()) {
+        return sendJSON(res, { ok: false, message: 'Full name is required.' });
+      }
+      if (!businessName || !businessName.trim()) {
+        return sendJSON(res, { ok: false, message: 'Business name is required.' });
+      }
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === session.email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Account not found.' });
+
+      seller.fullName = fullName.trim();
+      seller.businessName = businessName.trim();
+      if (phone !== undefined) seller.phone = phone;
+      if (businessPhone !== undefined) seller.businessPhone = businessPhone;
+      if (whatsappNumber !== undefined) seller.whatsappNumber = whatsappNumber;
+      if (state !== undefined) seller.state = state;
+      if (city !== undefined) seller.city = city;
+      if (businessAddress !== undefined) seller.businessAddress = businessAddress;
+      writeJSON('sellers.json', sellers);
+      sendJSON(res, { ok: true, message: 'Profile updated.' });
+    });
+    return;
+  }
 
   // ---------- SELLER ONBOARDING ----------
   if (req.method === 'GET' && req.url === '/api/seller/onboarding-status') {

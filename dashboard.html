@@ -219,6 +219,17 @@
   .modal label{font-size:12.5px; font-weight:700; margin-top:14px; display:block; color:var(--charcoal,var(--ink));}
   .modal-price{font-family:'Fraunces',serif; font-size:22px; font-weight:560; color:var(--green-700); margin:8px 0 16px;}
   .modal-btn{width:100%; margin-top:20px; padding:14px; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff; border:none; border-radius:var(--radius-pill); font-weight:700; cursor:pointer; font-family:'Manrope',sans-serif; box-shadow:0 12px 24px -10px rgba(15,122,74,0.55); transition:transform .2s, box-shadow .2s;}
+
+  .profile-card{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-lg); padding:28px; max-width:520px; box-shadow:var(--shadow-resting);}
+  .profile-card h2{font-size:21px; margin-bottom:4px;}
+  .profile-sub{font-size:13px; color:var(--gray-600); margin-bottom:18px;}
+  .profile-card label{font-size:12.5px; font-weight:700; margin-top:14px; display:block; color:var(--ink);}
+  .profile-card input{width:100%; padding:12px 14px; margin-top:8px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; transition:border-color .2s;}
+  .profile-card input:focus{outline:none; border-color:var(--green-600);}
+  .profile-card input:disabled{background:var(--mint-50); color:var(--gray-600); cursor:not-allowed;}
+  .profile-row-2{display:flex; gap:10px;}
+  .profile-row-2 > div{flex:1;}
+  .profile-msg{font-size:13px; font-weight:700; margin-top:14px; min-height:16px;}
   .modal-btn:hover{transform:translateY(-1px); box-shadow:0 16px 28px -10px rgba(15,122,74,0.65);}
   .review-row{border-top:1px solid var(--gray-300); padding-top:14px; margin-top:14px;}
   .review-row .rname{font-weight:700; font-size:13px;}
@@ -251,6 +262,7 @@
     <div class="tab" data-tab="wallet" onclick="showTab('wallet')">Wallet</div>
     <div class="tab" data-tab="orders" onclick="showTab('orders')">Orders</div>
     <div class="tab" data-tab="notifications" onclick="showTab('notifications')">🔔 <span id="notifCount"></span></div>
+    <div class="tab" data-tab="profile" onclick="showTab('profile')">Profile</div>
   </div>
 
   <div class="panel active" id="panel-browse">
@@ -289,6 +301,27 @@
 
   <div class="panel" id="panel-notifications">
     <div id="notificationsList"></div>
+  </div>
+
+  <div class="panel" id="panel-profile">
+    <div class="profile-card">
+      <h2>Your profile</h2>
+      <div class="profile-sub">The information on your SellHub account — this is what you gave us when you signed up.</div>
+      <label>Full name</label>
+      <input id="pf_fullName" placeholder="Full name">
+      <label>Email</label>
+      <input id="pf_email" disabled>
+      <label>Phone number</label>
+      <input id="pf_phone" placeholder="Phone number">
+      <label>Delivery address</label>
+      <input id="pf_address" placeholder="Address">
+      <div class="profile-row-2">
+        <div><label>State</label><input id="pf_state" placeholder="State"></div>
+        <div><label>City</label><input id="pf_city" placeholder="City"></div>
+      </div>
+      <button class="modal-btn" onclick="saveProfile()">Save changes</button>
+      <div class="profile-msg" id="pf_msg"></div>
+    </div>
   </div>
 </main>
 
@@ -959,6 +992,40 @@
     if (name === 'wallet') { loadWallet(); recheckPayments(); }
     if (name === 'orders') loadOrders();
     if (name === 'notifications') loadNotifications();
+    if (name === 'profile') loadProfile();
+  }
+
+  async function loadProfile(){
+    const res = await authedFetch('/api/profile');
+    const r = await res.json();
+    if (!r.ok) return;
+    document.getElementById('pf_fullName').value = r.fullName || '';
+    document.getElementById('pf_email').value = r.email || '';
+    document.getElementById('pf_phone').value = r.phone || (r.savedAddress && r.savedAddress.phone) || '';
+    document.getElementById('pf_address').value = (r.savedAddress && r.savedAddress.address) || '';
+    document.getElementById('pf_state').value = (r.savedAddress && r.savedAddress.state) || '';
+    document.getElementById('pf_city').value = (r.savedAddress && r.savedAddress.city) || '';
+  }
+
+  async function saveProfile(){
+    const body = {
+      fullName: document.getElementById('pf_fullName').value.trim(),
+      phone: document.getElementById('pf_phone').value.trim(),
+      address: document.getElementById('pf_address').value.trim(),
+      state: document.getElementById('pf_state').value.trim(),
+      city: document.getElementById('pf_city').value.trim()
+    };
+    const msgEl = document.getElementById('pf_msg');
+    const res = await authedFetch('/api/profile/update', { method: 'POST', body: JSON.stringify(body) });
+    const r = await res.json();
+    msgEl.textContent = r.message;
+    msgEl.style.color = r.ok ? 'var(--green-700)' : '#B4232C';
+    if (r.ok) {
+      customer.fullName = body.fullName;
+      localStorage.setItem('sellhub_customer', JSON.stringify(customer));
+      const greetingEl = document.getElementById('custName');
+      if (greetingEl) greetingEl.textContent = body.fullName;
+    }
   }
 
   async function logout(){
