@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const { sendOTPEmail, sendEmail } = require('./mailer');
 const { verifyGoogleToken } = require('./googleAuth');
 const { sendWhatsApp } = require('./whatsapp');
+const { backupFile, restoreAllFiles } = require('./dataBackup');
 
 // ---------- DATA STORAGE ----------
 // Render's free tier has no permanent disk: every time the service redeploys,
@@ -558,7 +559,13 @@ function readBody(req) {
   });
 }
 function readJSON(file) { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')); }
-function writeJSON(file, data) { fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2)); }
+function writeJSON(file, data) {
+  const text = JSON.stringify(data, null, 2);
+  fs.writeFileSync(path.join(DATA_DIR, file), text);
+  // Free, zero-maintenance safety net — see dataBackup.js. No-ops until an
+  // Upstash database is connected; never blocks or throws into the caller.
+  backupFile(file, text);
+}
 function serveFile(res, fileName) {
   fs.readFile(fileName, (err, content) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
@@ -2432,4 +2439,14 @@ const server = http.createServer((req, res) => {
   res.end('Not found');
 });
 
-server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
+// Before accepting any traffic, pull the last good copy of every data file
+// down from the free backup (if one's configured — see dataBackup.js) and
+// write it into DATA_DIR. This is what undoes Render's free-tier disk wipe:
+// by the time the first request comes in, customers.json/sellers.json/etc
+// already reflect the real, last-known data instead of whatever shipped in
+// the git repo.
+restoreAllFiles((fileName, contents) => {
+  fs.writeFileSync(path.join(DATA_DIR, fileName), contents);
+}, DATA_FILES).finally(() => {
+  server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
+});

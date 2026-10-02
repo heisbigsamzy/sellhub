@@ -34,6 +34,31 @@ npm start
 This runs `node --env-file=.env server.js`, which loads your `.env` file
 automatically (built into Node 20+, no extra package needed).
 
+## 6. (Free, recommended now) Stop your data from disappearing on restart
+Render's free tier has no permanent disk — every restart, redeploy, or idle
+spin-down wipes everything the app wrote at runtime (every signup, order,
+wallet balance). That's almost certainly why some accounts have "disappeared"
+and had to sign up again.
+
+Until you can afford a real persistent disk (the sturdier long-term fix —
+Render → your service → Disks tab, needs a paid instance type), `dataBackup.js`
+gives you a free stopgap: it backs up every data file to a free Upstash Redis
+database after every write, and restores the latest copy automatically the
+moment the server boots — before anything else can read a wiped file.
+
+1. Create a free account at https://upstash.com (no credit card needed).
+2. Console → Create Database → any region, free tier.
+3. On that database's "REST API" tab, copy `UPSTASH_REDIS_REST_URL` and
+   `UPSTASH_REDIS_REST_TOKEN`.
+4. In Render → your service → Environment, add both as environment variables
+   with those exact names.
+5. Redeploy. No code changes needed — you'll see `Restored <file> from
+   backup.` in the logs on every boot once it's wired up.
+
+Until you add those two variables, the app behaves exactly as it does today
+(a console warning, nothing else) — this is purely additive and safe to ship
+before you've set it up.
+
 ---
 
 ## What actually changed
