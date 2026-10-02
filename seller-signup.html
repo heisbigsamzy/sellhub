@@ -114,7 +114,7 @@
   ];
 
   function renderCountrySelect() {
-    return `<select id="phoneCountry" style="width:auto; max-width:120px; padding:12px 30px 12px 12px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14.5px; font-family:'Manrope',sans-serif; outline:none; background:#fff url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%235B6B62&quot; stroke-width=&quot;2.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;></polyline></svg>') no-repeat right 8px center; -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink);">
+    return `<select id="phoneCountry" style="width:auto; max-width:170px; padding:12px 30px 12px 12px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14.5px; font-family:'Manrope',sans-serif; outline:none; background:#fff url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%235B6B62&quot; stroke-width=&quot;2.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;></polyline></svg>') no-repeat right 8px center; -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
       ${COUNTRIES.map(([code, name, dial]) => `<option value="${dial}">${name} (${dial})</option>`).join('')}
     </select>`;
   }
