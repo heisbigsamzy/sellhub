@@ -41,12 +41,25 @@
     <div style="text-align:center; margin:16px 0; color:var(--gray-600); font-size:12.5px;">— or —</div>
     <div id="g_id_signin" style="display:flex; justify-content:center;"></div>
     <div id="msg"></div>
-    <p class="foot">New customer? <a href="/signup">Create a free account</a></p>
+    <p class="foot">New customer? <a id="signupLink" href="/signup">Create a free account</a></p>
     <p class="foot">New seller? <a href="/seller-signup">Create your store</a></p>
-    <p class="foot"><a href="/forgot-password">Forgot password?</a></p>
+    <p class="foot"><a id="forgotLink" href="/forgot-password">Forgot password?</a></p>
   </div>
 
 <script>
+  // Set when a guest was sent here from a seller's store link after trying
+  // to buy — e.g. clicking Buy on a shared product link while logged out.
+  // Logging in returns them to exactly that store/product instead of the
+  // dashboard, and the signup/forgot-password links carry it along too in
+  // case they switch pages first.
+  const nextParam = new URLSearchParams(window.location.search).get('next');
+  if (nextParam) {
+    const su = document.getElementById('signupLink');
+    if (su) su.href = '/signup?next=' + encodeURIComponent(nextParam);
+    const fp = document.getElementById('forgotLink');
+    if (fp) fp.href = '/forgot-password?next=' + encodeURIComponent(nextParam);
+  }
+
   async function login(){
     const data = {
       email: document.getElementById('email').value,
@@ -60,11 +73,11 @@
       if (result.accountType === 'seller') {
         localStorage.setItem('sellhub_seller', JSON.stringify(result.account));
         localStorage.setItem('sellhub_seller_token', result.token);
-        setTimeout(() => window.location.href = '/seller-onboarding', 600);
+        setTimeout(() => window.location.href = nextParam || '/seller-onboarding', 600);
       } else {
         localStorage.setItem('sellhub_customer', JSON.stringify(result.account));
         localStorage.setItem('sellhub_customer_token', result.token);
-        setTimeout(() => window.location.href = '/dashboard', 600);
+        setTimeout(() => window.location.href = nextParam || '/dashboard', 600);
       }
     }
   }
@@ -96,11 +109,11 @@
       if (result.accountType === 'seller') {
         localStorage.setItem('sellhub_seller', JSON.stringify(result.account));
         localStorage.setItem('sellhub_seller_token', result.token);
-        setTimeout(() => window.location.href = '/seller-onboarding', 600);
+        setTimeout(() => window.location.href = nextParam || '/seller-onboarding', 600);
       } else {
         localStorage.setItem('sellhub_customer', JSON.stringify(result.account));
         localStorage.setItem('sellhub_customer_token', result.token);
-        setTimeout(() => window.location.href = '/dashboard', 600);
+        setTimeout(() => window.location.href = nextParam || '/dashboard', 600);
       }
     }
   }
