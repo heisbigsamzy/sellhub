@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Admin Dashboard — SellHub</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560;620&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -118,8 +118,8 @@
 
   .withdraw-form{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:24px; max-width:440px; box-shadow:var(--shadow-resting);}
   .withdraw-form label{font-size:12.5px; font-weight:700; margin-top:14px; display:block; color:var(--ink);}
-  .withdraw-form input{width:100%; padding:12px 14px; margin-top:7px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; transition:border-color .2s;}
-  .search-input{width:100%; padding:12px 18px; margin-bottom:18px; border-radius:var(--radius-pill); border:1.5px solid var(--gray-300); font-size:14px; font-family:'Manrope',sans-serif; outline:none; transition:border-color .2s;}
+  .withdraw-form input{width:100%; padding:12px 14px; margin-top:7px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; transition:border-color .2s;}
+  .search-input{width:100%; padding:12px 18px; margin-bottom:18px; border-radius:var(--radius-pill); border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; outline:none; transition:border-color .2s;}
   .search-input:focus{border-color:var(--green-600);}
   .badge.neutral{background:#F2F2F2; color:var(--gray-600);}
   .withdraw-form input:focus{outline:none; border-color:var(--green-600);}
@@ -245,7 +245,7 @@
         <div style="margin-top:28px; padding:16px; background:#FFF3E0; border-radius:14px;">
           <h3 style="font-size:13px; margin-bottom:6px;">Clear old / demo data</h3>
           <p style="font-size:12.5px; color:var(--gray-600); margin:0 0 10px;">Wipes all seller withdrawal records and resets this Platform Wallet balance back to ₦0. Use this once to clear out test data — it does not touch real orders, products, or accounts.</p>
-          <input id="clearDemo_pin" type="password" placeholder="Enter your withdrawal PIN" inputmode="numeric" maxlength="6" style="width:100%; padding:10px 12px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:13px; font-family:'Manrope',sans-serif; margin-bottom:10px;">
+          <input id="clearDemo_pin" type="password" placeholder="Enter your withdrawal PIN" inputmode="numeric" maxlength="6" style="width:100%; padding:10px 12px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; margin-bottom:10px;">
           <button class="btn reject" onclick="clearDemoWithdrawals()">Clear withdrawal history &amp; reset balance</button>
           <div id="clearDemo_msg" style="font-size:12.5px; font-weight:700; margin-top:8px;"></div>
         </div>

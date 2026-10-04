@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Create your free SellHub account</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -15,7 +15,7 @@
   .logo-mark{width:28px; height:28px; border-radius:8px; overflow:hidden; flex-shrink:0; box-shadow:0 6px 14px -4px rgba(15,122,74,0.35);}
   .logo-mark img{width:100%; height:100%; object-fit:cover; display:block;}
   h1{font-family:'Fraunces',serif; font-size:24px; font-weight:560; margin:0 0 20px;}
-  input{width:100%; padding:12px 14px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14.5px; font-family:'Manrope',sans-serif; outline:none; transition:border-color .2s;}
+  input{width:100%; padding:12px 14px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; outline:none; transition:border-color .2s;}
   input:focus{border-color:var(--green-600);}
   button{width:100%; margin-top:18px; padding:13px; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff; border:none; border-radius:100px; font-weight:700; font-size:14.5px; cursor:pointer; font-family:'Manrope',sans-serif; box-shadow:0 14px 28px -10px rgba(15,122,74,0.55); transition:transform .2s, box-shadow .2s;}
   button:hover{transform:translateY(-1px); box-shadow:0 18px 34px -10px rgba(15,122,74,0.65);}
@@ -114,7 +114,7 @@
   ];
 
   function renderCountrySelect() {
-    return `<select id="phoneCountry" style="width:auto; max-width:170px; padding:12px 30px 12px 12px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:14.5px; font-family:'Manrope',sans-serif; outline:none; background:#fff url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%235B6B62&quot; stroke-width=&quot;2.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;></polyline></svg>') no-repeat right 8px center; -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+    return `<select id="phoneCountry" style="width:auto; max-width:170px; padding:12px 30px 12px 12px; margin-top:10px; border-radius:10px; border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; outline:none; background:#fff url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%235B6B62&quot; stroke-width=&quot;2.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;></polyline></svg>') no-repeat right 8px center; -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
       ${COUNTRIES.map(([code, name, dial]) => `<option value="${dial}">${name} (${dial})</option>`).join('')}
     </select>`;
   }
