@@ -497,37 +497,29 @@
       <div class="card">
         <div class="card-top">
           <div>
-            <div class="card-title">${w.storeName || w.sellerEmail}</div>
-            <div class="card-sub">${w.sellerEmail} · ${new Date(w.date).toLocaleString()}</div>
+            <div class="card-title">${w.sellerFullName || w.storeName || w.sellerEmail}</div>
+            <div class="card-sub">${w.sellerBusinessName || w.storeName || ''}${w.sellerBusinessName || w.storeName ? ' · ' : ''}${w.sellerEmail} · ${new Date(w.date).toLocaleString()}</div>
+            ${w.sellerPhone || w.sellerWhatsapp ? `<div class="card-sub">${[w.sellerPhone, w.sellerWhatsapp].filter(Boolean).join(' · ')}</div>` : ''}
           </div>
-          <span class="badge ${w.status === 'Pending' ? 'pending' : w.status === 'Processing' ? 'pending' : w.status === 'Approved' ? 'approved' : 'rejected'}">${w.status}</span>
+          <span class="badge ${w.status === 'Pending' ? 'pending' : w.status === 'Approved' ? 'approved' : 'rejected'}">${w.status}</span>
         </div>
         <div class="row"><span>Requested amount</span><span>${money(w.amount)}</span></div>
         <div class="row"><span>Fee</span><span>${money(w.fee)}</span></div>
-        <div class="row"><span>Net payout</span><span><b>${money(w.netAmount)}</b></span></div>
-        <div class="row"><span>Bank</span><span>${w.bank} · ${w.accountNumber} · ${w.accountName}</span></div>
-        ${w.status === 'Processing' ? `<div class="row" style="color:var(--gray-600);">${w.needsOtp ? 'Waiting on an OTP to finish this transfer.' : 'Sent to Paystack — waiting for confirmation.'}</div>` : ''}
+        <div class="row"><span>Net payout (pay this much)</span><span><b>${money(w.netAmount)}</b></span></div>
+        <div class="row"><span>Bank account</span><span>${w.bank} · ${w.accountNumber} · ${w.accountName}</span></div>
         ${w.status === 'Pending' ? `
         <div class="actions">
-          <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve &amp; Pay</button>
+          <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve (I'll pay manually)</button>
           <button class="btn reject" onclick="decideWithdrawal(${w.id}, 'Rejected')">Reject &amp; Refund</button>
-        </div>
-        <div class="actions" style="margin-top:6px;">
-          <button class="btn" style="width:100%; background:#f2f2f2; color:var(--gray-600); font-size:11.5px; padding:8px 14px;" onclick="decideWithdrawal(${w.id}, 'ApprovedManual')">I already paid this manually — just mark it Approved</button>
         </div>` : ''}
-        ${w.status === 'Approved' && w.paidManually ? `<div class="row" style="color:var(--gray-600);">Paid manually (not sent via Paystack).</div>` : ''}
-        ${w.status === 'Processing' && w.needsOtp ? `
-        <div class="actions">
-          <button class="btn approve" onclick="promptOtp('${w.transferCode}')">Enter OTP</button>
-        </div>` : ''}
+        ${w.status === 'Approved' ? `<div class="row" style="color:var(--gray-600);">Approved — paid manually (SellHub did not send this via Paystack).</div>` : ''}
       </div>
     `).join('');
   }
 
   async function decideWithdrawal(id, decision){
     if (decision === 'Rejected' && !confirm('Reject this withdrawal and refund the seller wallet?')) return;
-    if (decision === 'Approved' && !confirm('This will send real money to the seller\'s bank account right now via Paystack. Continue?')) return;
-    if (decision === 'ApprovedManual' && !confirm('This does NOT send any money. Only use this if you have ALREADY paid the seller yourself. Continue?')) return;
+    if (decision === 'Approved' && !confirm('This marks the request as approved and paid, but does NOT send any money. Only continue once you have actually transferred ' + 'the net payout to the seller\'s bank account yourself. Continue?')) return;
     const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision }) });
     const r = await res.json();
     alert(r.message);

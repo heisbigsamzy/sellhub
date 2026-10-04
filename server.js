@@ -845,7 +845,22 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
     const withdrawals = readJSON('withdrawals.json');
-    sendJSON(res, { ok: true, withdrawals: withdrawals.slice().reverse() });
+    const sellers = readJSON('sellers.json');
+    // Enriched with the seller's actual registration info (not just the
+    // store name saved on the request at submit time) so the admin can see
+    // exactly who they're paying — their real name, email and phone —
+    // alongside the bank account details, before sending money manually.
+    const withOrders = withdrawals.slice().reverse().map(w => {
+      const seller = sellers.find(s => s.email === w.sellerEmail);
+      return {
+        ...w,
+        sellerFullName: seller ? (seller.fullName || '') : '',
+        sellerBusinessName: seller ? (seller.businessName || w.storeName || '') : w.storeName,
+        sellerPhone: seller ? (seller.phone || seller.businessPhone || '') : '',
+        sellerWhatsapp: seller ? (seller.whatsappNumber || '') : ''
+      };
+    });
+    sendJSON(res, { ok: true, withdrawals: withOrders });
     return;
   }
 
@@ -853,7 +868,12 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
     readBody(req).then(async ({ id, decision }) => {
-      if (!['Approved', 'Rejected', 'ApprovedManual'].includes(decision)) {
+      // Seller payouts are always manual now — SellHub/Paystack never moves
+      // money to a seller automatically. Approving here only marks the
+      // request as approved so you know to go pay the seller yourself
+      // (their own bank app, or a manual transfer from your Paystack
+      // dashboard) using the account details shown on the request.
+      if (!['Approved', 'Rejected'].includes(decision)) {
         return sendJSON(res, { ok: false, message: 'Invalid decision.' });
       }
       const withdrawals = readJSON('withdrawals.json');
@@ -878,58 +898,21 @@ const server = http.createServer((req, res) => {
         return sendJSON(res, { ok: true, message: 'Withdrawal rejected and refunded to the seller\'s wallet.' });
       }
 
-      // Fallback for while Paystack Transfers isn't available yet (e.g. a
-      // Starter Business account that hasn't upgraded to Registered Business).
-      // This just marks it paid — YOU still have to actually send the money
-      // yourself through your own bank or Paystack dashboard.
-      if (decision === 'ApprovedManual') {
-        withdrawal.status = 'Approved';
-        withdrawal.paidManually = true;
-        writeJSON('withdrawals.json', withdrawals);
+      // decision === 'Approved': just marks it paid. YOU still have to
+      // actually send the money yourself, using the bank details on the
+      // request (account name/number/bank already shown in the dashboard).
+      withdrawal.status = 'Approved';
+      withdrawal.paidManually = true;
+      writeJSON('withdrawals.json', withdrawals);
 
-        const sellers = readJSON('sellers.json');
-        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
-        if (seller) {
-          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
-          if (txn) txn.status = 'Approved';
-          writeJSON('sellers.json', sellers);
-        }
-        return sendJSON(res, { ok: true, message: 'Marked as paid. Remember: SellHub did NOT send any money — make sure you actually transferred it yourself.' });
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
+      if (seller) {
+        const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
+        if (txn) txn.status = 'Approved';
+        writeJSON('sellers.json', sellers);
       }
-
-      // Approving sends the real payout via Paystack right now, rather than
-      // just flipping a status flag. The request stays Pending (so nothing
-      // looks paid, and it can be retried) unless the transfer actually starts.
-      if (!withdrawal.bankCode) {
-        return sendJSON(res, { ok: false, message: 'This request was submitted before bank verification was added — ask the seller to delete and resubmit it, or pay them manually and reject this one.' });
-      }
-      try {
-        const recipientCode = await createTransferRecipient(withdrawal.accountName, withdrawal.accountNumber, withdrawal.bankCode);
-        const reference = `seller-wd-${withdrawal.id}`;
-        const transfer = await initiateTransfer(withdrawal.netAmount, recipientCode, `SellHub withdrawal for ${withdrawal.storeName || withdrawal.sellerEmail}`, reference);
-        withdrawal.status = 'Processing';
-        withdrawal.transferCode = transfer.transfer_code;
-        withdrawal.transferReference = reference;
-        if (transfer.status === 'otp') withdrawal.needsOtp = true;
-        writeJSON('withdrawals.json', withdrawals);
-
-        const sellers = readJSON('sellers.json');
-        const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
-        if (seller) {
-          const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
-          if (txn) txn.status = 'Processing';
-          writeJSON('sellers.json', sellers);
-        }
-
-        sendJSON(res, {
-          ok: true,
-          message: transfer.status === 'otp'
-            ? 'Transfer started — Paystack needs an OTP to finish it. Enter it from the withdrawal list to complete the payout.'
-            : 'Transfer sent! It will show as Paid once Paystack confirms it (usually under a minute).'
-        });
-      } catch (err) {
-        sendJSON(res, { ok: false, message: 'Transfer failed to start: ' + err.message + '. The request is still Pending — fix the issue (e.g. low Paystack balance) and try again.' });
-      }
+      return sendJSON(res, { ok: true, message: 'Marked as approved & paid. Remember: SellHub did NOT send any money — make sure you actually transferred it to the seller yourself.' });
     });
     return;
   }
@@ -2122,9 +2105,9 @@ const server = http.createServer((req, res) => {
       }
 
       // Deduct immediately so the same funds can't be withdrawn twice while
-      // this request is pending review. Once an admin approves it, SellHub
-      // sends the real money automatically via Paystack Transfers — see
-      // /api/admin/withdrawals/decide and the transfer.* webhook handling.
+      // this request is pending review. An admin reviews it in the dashboard
+      // and pays the seller manually (their own bank/Paystack dashboard) —
+      // see /api/admin/withdrawals/decide.
       seller.walletBalance -= amount;
       seller.transactions = seller.transactions || [];
       seller.transactions.unshift({
