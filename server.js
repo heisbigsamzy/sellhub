@@ -25,8 +25,14 @@ const DATA_FILES = [
 // once from whatever's already sitting next to server.js (your current
 // sellers/products/settings) so the site doesn't start from zero — after
 // that, the disk's own copies are always used and never overwritten here.
+// True only when this disk has never held SellHub data (brand-new or wiped).
+// Only then is the Upstash copy allowed to overwrite the disk at boot; on a
+// disk that already has data, the disk is the source of truth and a possibly
+// older backup must never replace it.
+let freshDisk = false;
 if (DATA_DIR !== __dirname) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  freshDisk = ['sellers.json', 'customers.json', 'products.json'].every(f => !fs.existsSync(path.join(DATA_DIR, f)));
   for (const file of DATA_FILES) {
     const dest = path.join(DATA_DIR, file);
     const src = path.join(__dirname, file);
@@ -665,7 +671,56 @@ function readBody(req) {
   });
 }
 function readJSON(file) { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')); }
+// ---------- IMAGE FILES (kept out of the JSON data) ----------
+// Photos arrive as huge base64 "data:" strings (ID photos, selfies, CAC
+// documents, store logos, product photos). Inside sellers.json/products.json
+// they made the files so big that the free Upstash backup could refuse them.
+// Now, every time a data file is saved, any such string is written to its own
+// file in DATA_DIR/blobs and replaced by a short link (/blob/<random-id>.jpg).
+// Pages use that link in <img src> exactly like they used the inline data.
+// The ids are long and random, so a link can't be guessed.
+const BLOB_DIR = path.join(DATA_DIR, 'blobs');
+const BLOB_TYPES = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' };
+const BLOB_MIME = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf' };
+const DATA_URL_RE = /^data:([a-z]+\/[a-z]+);base64,/i;
+
+function externalizeBlob(str) {
+  const m = DATA_URL_RE.exec(str);
+  const ext = m && BLOB_TYPES[m[1].toLowerCase()];
+  if (!ext) return str;
+  const id = crypto.randomBytes(24).toString('hex');
+  try {
+    fs.mkdirSync(BLOB_DIR, { recursive: true });
+    fs.writeFileSync(path.join(BLOB_DIR, `${id}.${ext}`), Buffer.from(str.slice(m[0].length), 'base64'));
+  } catch (e) {
+    console.log('Could not save image file, keeping it inline:', e.message);
+    return str;
+  }
+  return `/blob/${id}.${ext}`;
+}
+
+// Walks the data in place; returns true if anything was moved out.
+function externalizeBlobs(node) {
+  let changed = false;
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) {
+      if (typeof node[i] === 'string') {
+        if (node[i].length > 2000 && node[i].startsWith('data:')) { const r = externalizeBlob(node[i]); if (r !== node[i]) { node[i] = r; changed = true; } }
+      } else if (node[i] && typeof node[i] === 'object') changed = externalizeBlobs(node[i]) || changed;
+    }
+  } else if (node && typeof node === 'object') {
+    for (const k of Object.keys(node)) {
+      const v = node[k];
+      if (typeof v === 'string') {
+        if (v.length > 2000 && v.startsWith('data:')) { const r = externalizeBlob(v); if (r !== v) { node[k] = r; changed = true; } }
+      } else if (v && typeof v === 'object') changed = externalizeBlobs(v) || changed;
+    }
+  }
+  return changed;
+}
+
 function writeJSON(file, data) {
+  externalizeBlobs(data);
   const text = JSON.stringify(data, null, 2);
   fs.writeFileSync(path.join(DATA_DIR, file), text);
   // Free, zero-maintenance safety net — see dataBackup.js. No-ops until an
@@ -704,6 +759,20 @@ const server = http.createServer((req, res) => {
   // Ignore any ?query=string when matching a page, so returning from
   // Paystack to /dashboard?deposit=success still loads the dashboard.
   const pagePath = req.url.split('?')[0];
+  if (req.method === 'GET' && /^\/blob\/[a-f0-9]{48}\.(jpg|png|webp|gif|pdf)$/.test(pagePath)) {
+    const name = pagePath.slice(6);
+    fs.readFile(path.join(BLOB_DIR, name), (err, img) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, {
+        'Content-Type': BLOB_MIME[name.split('.')[1]],
+        'Cache-Control': 'private, max-age=86400',
+        'X-Robots-Tag': 'noindex',
+        'X-Content-Type-Options': 'nosniff'
+      });
+      res.end(img);
+    });
+    return;
+  }
   if (req.method === 'GET' && pagePath === '/logo.jpg') {
     fs.readFile(path.join(__dirname, 'logo.jpg'), (err, img) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
@@ -2604,9 +2673,25 @@ const server = http.createServer((req, res) => {
 // already reflect the real, last-known data instead of whatever shipped in
 // the git repo.
 loadSessionsFromDisk();
-restoreAllFiles((fileName, contents) => {
-  fs.writeFileSync(path.join(DATA_DIR, fileName), contents);
-}, DATA_FILES)
+// On a disk that already holds data, the disk wins: an older backup must
+// never overwrite it. The backup is only pulled down for a brand-new/wiped
+// disk, or when there's no persistent disk at all.
+const restoreData = (DATA_DIR === __dirname || freshDisk)
+  ? restoreAllFiles((fileName, contents) => {
+      fs.writeFileSync(path.join(DATA_DIR, fileName), contents);
+    }, DATA_FILES)
+  : (console.log('Disk already has data — using it as is (skipping restore from backup).'), Promise.resolve());
+restoreData
+  // Move any photos still stored inline in the data files out to image files,
+  // so the backup stays small. Safe to run on every boot (does nothing once done).
+  .then(() => {
+    for (const file of DATA_FILES) {
+      try {
+        const data = readJSON(file);
+        if (externalizeBlobs(data)) { writeJSON(file, data); console.log('Moved inline images out of', file); }
+      } catch (e) { /* file missing or not JSON — leave it */ }
+    }
+  })
   // Also pull back any in-flight signup/reset codes from before the restart,
   // straight into memory (these never lived on disk, so no fs write here).
   .then(() => restoreAllFiles((fileName, contents) => {
