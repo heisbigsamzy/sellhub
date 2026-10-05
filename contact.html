@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Contact us — SellHub Market</title>
+<meta name="description" content="Contact SellHub Market support on WhatsApp or email.">
+<link rel="icon" href="/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-900:#0B3D28;
+    --green-700:#0F7A4A;
+    --green-600:#149A5C;
+    --green-400:#3FC17F;
+    --mint-100:#EAF7EF;
+    --mint-50:#F5FBF7;
+    --ink:#0B0F0C;
+    --gray-600:#5B6B62;
+    --gray-300:#DCE6E0;
+    --white:#FFFFFF;
+    --radius-lg:24px;
+    --radius-sm:12px;
+    --radius-pill:100px;
+    --shadow-soft:0 20px 60px -20px rgba(11,15,12,0.25);
+  }
+  *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
+  body{
+    margin:0;
+    font-family:'Manrope',sans-serif;
+    background:
+      radial-gradient(700px 420px at 86% -8%, rgba(63,193,127,0.08), transparent 60%),
+      var(--mint-50);
+    color:var(--ink);
+    line-height:1.7;
+    overflow-x:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
+  }
+  a:focus-visible{outline:2.5px solid var(--green-600); outline-offset:2px; border-radius:6px;}
+  header{
+    background:rgba(255,255,255,0.86);
+    backdrop-filter:blur(14px) saturate(160%);
+    border-bottom:1px solid rgba(11,61,40,0.08);
+    position:sticky; top:0; z-index:10;
+    padding:16px 24px;
+  }
+  .nav{max-width:720px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  header a.logo{
+    display:flex; align-items:center; gap:10px;
+    color:var(--ink);
+    text-decoration:none;
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.15rem;
+  }
+  .logo-mark{width:28px; height:28px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); box-shadow:0 6px 14px -4px rgba(15,122,74,0.4); position:relative; flex-shrink:0;}
+  .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px;}
+  header .back-link{font-size:0.85rem; font-weight:700; color:var(--green-700); text-decoration:none;}
+  header .back-link:hover{color:var(--green-900);}
+  main{
+    max-width:680px;
+    margin:0 auto;
+    padding:48px 20px 80px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    letter-spacing:-0.01em;
+    font-size:2rem;
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  .updated{
+    display:inline-block;
+    color:var(--green-900);
+    background:var(--mint-100);
+    font-size:0.82rem;
+    font-weight:700;
+    padding:6px 14px;
+    border-radius:var(--radius-pill);
+    margin-bottom:32px;
+  }
+  h2{
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.25rem;
+    color:var(--green-900);
+    margin-top:40px;
+    margin-bottom:12px;
+    letter-spacing:-0.005em;
+  }
+  p, li{
+    color:#2A332E;
+    font-size:1rem;
+    max-width:62ch;
+  }
+  li{margin-bottom:8px;}
+  li:last-child{margin-bottom:0;}
+  ul{
+    padding-left:20px;
+    margin-top:0;
+  }
+  a{
+    color:var(--green-700);
+    font-weight:600;
+  }
+  a:hover{color:var(--green-900);}
+  .box{
+    background:var(--white);
+    border:1px solid var(--gray-300);
+    border-radius:var(--radius-lg);
+    padding:40px 40px 16px;
+    box-shadow:var(--shadow-soft);
+  }
+  @media (max-width:640px){
+    main{padding:32px 16px 64px;}
+    .box{padding:28px 22px 12px;}
+    h1{font-size:1.65rem;}
+  }
+  footer{
+    text-align:center;
+    color:var(--gray-600);
+    font-size:0.85rem;
+    padding:28px 20px 40px;
+  }
+  .cta{display:inline-block; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff !important; text-decoration:none; font-weight:700; padding:13px 24px; border-radius:var(--radius-pill); margin:6px 0 18px;}
+  .cta:hover{color:#fff !important; opacity:.92;}
+  details{border-top:1px solid var(--gray-300); padding:14px 0;}
+  details:last-of-type{border-bottom:1px solid var(--gray-300);}
+  summary{cursor:pointer; font-weight:700; color:var(--ink); font-size:1.02rem;}
+  details p{margin:10px 0 0;}
+  .box h2:first-of-type{margin-top:28px;}
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px;}
+  .toc a{background:var(--mint-100); color:var(--green-900); text-decoration:none; font-size:.85rem; padding:6px 14px; border-radius:var(--radius-pill);}
+  html{scroll-behavior:smooth;}
+  h2[id]{scroll-margin-top:84px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="logo" href="/"><span class="logo-mark"></span>SellHub Market</a>
+    <a class="back-link" href="/">Back to home</a>
+  </div>
+</header>
+<main>
+  <div class="box">
+    <h1>Contact us</h1>
+    <p class="updated">We're here to help</p>
+    <p>Have a question about an order, your account, or selling on SellHub? Message us and we'll reply as soon as we can.</p>
+
+    <h2>WhatsApp (fastest)</h2>
+    <p><a class="cta" href="https://wa.me/2347044589579?text=Hello%20SellHub%2C%20I%20need%20help%20with..." target="_blank" rel="noopener">Chat with support on WhatsApp</a></p>
+    <p>+234 704 458 9579</p>
+
+    <h2>Email</h2>
+    <p><a href="mailto:heisbigsamzy@gmail.com">heisbigsamzy@gmail.com</a></p>
+
+    <h2>What to include</h2>
+    <ul>
+      <li>The email address on your SellHub account</li>
+      <li>For an order problem: the order number and what went wrong</li>
+      <li>For a seller question: your store name</li>
+    </ul>
+
+    <h2>Quick answers</h2>
+    <p>Many questions are already answered in the <a href="/help">Help Center</a>, including how to buy, how to report an order, and how to get verified as a seller.</p>
+  </div>
+</main>
+<footer>&copy; 2026 SellHub Market. All rights reserved. &middot; <a href="/about">About</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/help">Help</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></footer>
+</body>
+</html>

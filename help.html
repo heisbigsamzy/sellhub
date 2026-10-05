@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Help Center — SellHub Market</title>
+<meta name="description" content="Answers for customers and sellers on SellHub Market.">
+<link rel="icon" href="/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-900:#0B3D28;
+    --green-700:#0F7A4A;
+    --green-600:#149A5C;
+    --green-400:#3FC17F;
+    --mint-100:#EAF7EF;
+    --mint-50:#F5FBF7;
+    --ink:#0B0F0C;
+    --gray-600:#5B6B62;
+    --gray-300:#DCE6E0;
+    --white:#FFFFFF;
+    --radius-lg:24px;
+    --radius-sm:12px;
+    --radius-pill:100px;
+    --shadow-soft:0 20px 60px -20px rgba(11,15,12,0.25);
+  }
+  *{box-sizing:border-box;}
+  html{overflow-x:hidden;}
+  body{
+    margin:0;
+    font-family:'Manrope',sans-serif;
+    background:
+      radial-gradient(700px 420px at 86% -8%, rgba(63,193,127,0.08), transparent 60%),
+      var(--mint-50);
+    color:var(--ink);
+    line-height:1.7;
+    overflow-x:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
+  }
+  a:focus-visible{outline:2.5px solid var(--green-600); outline-offset:2px; border-radius:6px;}
+  header{
+    background:rgba(255,255,255,0.86);
+    backdrop-filter:blur(14px) saturate(160%);
+    border-bottom:1px solid rgba(11,61,40,0.08);
+    position:sticky; top:0; z-index:10;
+    padding:16px 24px;
+  }
+  .nav{max-width:720px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  header a.logo{
+    display:flex; align-items:center; gap:10px;
+    color:var(--ink);
+    text-decoration:none;
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.15rem;
+  }
+  .logo-mark{width:28px; height:28px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); box-shadow:0 6px 14px -4px rgba(15,122,74,0.4); position:relative; flex-shrink:0;}
+  .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px;}
+  header .back-link{font-size:0.85rem; font-weight:700; color:var(--green-700); text-decoration:none;}
+  header .back-link:hover{color:var(--green-900);}
+  main{
+    max-width:680px;
+    margin:0 auto;
+    padding:48px 20px 80px;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    letter-spacing:-0.01em;
+    font-size:2rem;
+    margin:0 0 10px;
+    color:var(--ink);
+  }
+  .updated{
+    display:inline-block;
+    color:var(--green-900);
+    background:var(--mint-100);
+    font-size:0.82rem;
+    font-weight:700;
+    padding:6px 14px;
+    border-radius:var(--radius-pill);
+    margin-bottom:32px;
+  }
+  h2{
+    font-family:'Fraunces',serif;
+    font-weight:560;
+    font-size:1.25rem;
+    color:var(--green-900);
+    margin-top:40px;
+    margin-bottom:12px;
+    letter-spacing:-0.005em;
+  }
+  p, li{
+    color:#2A332E;
+    font-size:1rem;
+    max-width:62ch;
+  }
+  li{margin-bottom:8px;}
+  li:last-child{margin-bottom:0;}
+  ul{
+    padding-left:20px;
+    margin-top:0;
+  }
+  a{
+    color:var(--green-700);
+    font-weight:600;
+  }
+  a:hover{color:var(--green-900);}
+  .box{
+    background:var(--white);
+    border:1px solid var(--gray-300);
+    border-radius:var(--radius-lg);
+    padding:40px 40px 16px;
+    box-shadow:var(--shadow-soft);
+  }
+  @media (max-width:640px){
+    main{padding:32px 16px 64px;}
+    .box{padding:28px 22px 12px;}
+    h1{font-size:1.65rem;}
+  }
+  footer{
+    text-align:center;
+    color:var(--gray-600);
+    font-size:0.85rem;
+    padding:28px 20px 40px;
+  }
+  .cta{display:inline-block; background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff !important; text-decoration:none; font-weight:700; padding:13px 24px; border-radius:var(--radius-pill); margin:6px 0 18px;}
+  .cta:hover{color:#fff !important; opacity:.92;}
+  details{border-top:1px solid var(--gray-300); padding:14px 0;}
+  details:last-of-type{border-bottom:1px solid var(--gray-300);}
+  summary{cursor:pointer; font-weight:700; color:var(--ink); font-size:1.02rem;}
+  details p{margin:10px 0 0;}
+  .box h2:first-of-type{margin-top:28px;}
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px;}
+  .toc a{background:var(--mint-100); color:var(--green-900); text-decoration:none; font-size:.85rem; padding:6px 14px; border-radius:var(--radius-pill);}
+  html{scroll-behavior:smooth;}
+  h2[id]{scroll-margin-top:84px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="logo" href="/"><span class="logo-mark"></span>SellHub Market</a>
+    <a class="back-link" href="/">Back to home</a>
+  </div>
+</header>
+<main>
+  <div class="box">
+    <h1>Help Center</h1>
+    <p class="updated">Answers to common questions</p>
+    <div class="toc"><a href="#buying">Buying</a><a href="#protection">Customer Protection</a><a href="#sellers">Seller Guide</a><a href="#account">Your account</a></div>
+
+    <h2 id="buying">Buying on SellHub</h2>
+    <details><summary>How do I pay?</summary><p>Add money to your SellHub wallet with the Add Money button. Payment is handled securely by Paystack. Then pay for your orders from your wallet balance. The total, including any service fee, is shown before you confirm.</p></details>
+    <details><summary>How do I buy from a seller?</summary><p>Open the seller's store link, choose a product, and add it to your cart. If you are not logged in, you will be asked to log in or sign up first, and you will come straight back to the product afterwards.</p></details>
+    <details><summary>How do I track my order?</summary><p>Log in and open your orders. You will also get updates by email and WhatsApp when the status changes, for example when it is shipped or out for delivery.</p></details>
+    <details><summary>Can I cancel an order?</summary><p>Orders are cancelled by the seller. If a seller cancels an order, you are refunded to your SellHub wallet. If you need a cancellation, message the seller or <a href="/contact">contact support</a>.</p></details>
+
+    <h2 id="protection">Customer Protection</h2>
+    <ul>
+      <li><strong>Checked sellers.</strong> Every seller has to submit a government ID and selfie, which our team reviews before they can post products. Look for the verification badges on a store.</li>
+      <li><strong>Secure payments.</strong> Deposits are processed by Paystack. SellHub does not store your card details.</li>
+      <li><strong>Report a problem.</strong> If an order is wrong, late, or not what was described, report it from your orders page. Our team reviews the report and contacts both sides.</li>
+      <li><strong>Action on sellers.</strong> Sellers who mislead customers can be warned, suspended or removed.</li>
+    </ul>
+    <p>Not sure about a seller or an order? <a href="/contact">Message us on WhatsApp</a> before you pay.</p>
+
+    <h2 id="sellers">Seller Guide</h2>
+    <ul>
+      <li><strong>1. Create your account.</strong> Sign up as a seller and confirm your email with the code we send.</li>
+      <li><strong>2. Set up your store.</strong> Add your store name, WhatsApp number, logo and cover photo.</li>
+      <li><strong>3. Get verified.</strong> Open the Verification Center in your dashboard and submit your ID and a selfie. You can start posting once your identity is verified. You can also verify your bank account and business (CAC) for extra badges.</li>
+      <li><strong>4. Add products.</strong> Upload clear photos, set your price and stock.</li>
+      <li><strong>5. Share your store link.</strong> Send it on WhatsApp, Instagram and anywhere your customers are.</li>
+      <li><strong>6. Fulfil orders.</strong> You are notified by WhatsApp and email for every new order. Update the status and tracking as you ship.</li>
+      <li><strong>7. Withdraw your money.</strong> Your share of each order is added to your wallet. Request a withdrawal to your verified bank account. We review it and pay it manually, and you are notified when it is paid.</li>
+    </ul>
+    <p>If a verification is rejected, check that your documents are clear and match your details, then submit again.</p>
+
+    <h2 id="account">Your account</h2>
+    <details><summary>I forgot my password.</summary><p>On the login page, choose Forgot password. We will email you a code to set a new password.</p></details>
+    <details><summary>I did not get my email code.</summary><p>Check your spam or junk folder first. Codes come from no-reply@sellhubmarket.xyz. If it still does not arrive, request a new code or <a href="/contact">contact support</a>.</p></details>
+    <details><summary>How do I delete my account?</summary><p><a href="/contact">Contact us</a> from the email address on the account and we will help you.</p></details>
+
+    <p style="margin-top:28px">Still stuck? <a href="/contact">Contact support</a>.</p>
+  </div>
+</main>
+<footer>&copy; 2026 SellHub Market. All rights reserved. &middot; <a href="/about">About</a> &middot; <a href="/contact">Contact</a> &middot; <a href="/help">Help</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></footer>
+</body>
+</html>
