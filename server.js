@@ -57,8 +57,9 @@ const resetCodes = {};
 // Backed up to the same free Upstash store as the data files (a no-op
 // until that's configured — see dataBackup.js) and restored on boot, so
 // these survive exactly like everything else now does.
-const CODE_STATE_FILES = ['pendingSignups.json', 'pendingSellerSignups.json', 'resetCodes.json'];
+const CODE_STATE_FILES = ['pendingSignups.json', 'pendingSellerSignups.json', 'resetCodes.json', 'sessions.json'];
 function persistCodeState() {
+  backupFile('sessions.json', JSON.stringify(sessions));
   backupFile('pendingSignups.json', JSON.stringify(pendingSignups));
   backupFile('pendingSellerSignups.json', JSON.stringify(pendingSellerSignups));
   backupFile('resetCodes.json', JSON.stringify(resetCodes));
@@ -371,12 +372,35 @@ function normalizeEmail(email) {
 // Resets when the server restarts — fine for an MVP, but note that a real
 // deployment should move this to a persistent store (e.g. Redis) so sessions
 // survive restarts and work across multiple server instances.
+// Sessions are now saved (debounced) to the persistent disk and the Upstash
+// backup, so a Render restart or redeploy no longer logs everyone out. Only a
+// SHA-256 hash of each token is stored, never the token itself, so a leaked
+// backup can't be used to log in as someone.
 const sessions = {};
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const hashToken = token => crypto.createHash('sha256').update(token).digest('hex');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+let sessionSaveTimer = null;
+
+function saveSessions() {
+  if (sessionSaveTimer) return;
+  sessionSaveTimer = setTimeout(() => {
+    sessionSaveTimer = null;
+    const now = Date.now();
+    for (const k of Object.keys(sessions)) if (sessions[k].expiresAt < now) delete sessions[k];
+    try { fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions)); } catch (e) { console.log('Could not save sessions:', e.message); }
+    backupFile('sessions.json', JSON.stringify(sessions));
+  }, 1000);
+}
+
+function loadSessionsFromDisk() {
+  try { Object.assign(sessions, JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'))); } catch (e) { /* none yet */ }
+}
 
 function createSession(email, accountType) {
   const token = crypto.randomBytes(32).toString('hex');
-  sessions[token] = { email, accountType, expiresAt: Date.now() + SESSION_TTL_MS };
+  sessions[hashToken(token)] = { email, accountType, expiresAt: Date.now() + SESSION_TTL_MS };
+  saveSessions();
   return token;
 }
 
@@ -384,9 +408,10 @@ function getSession(req) {
   const header = req.headers['authorization'] || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return null;
-  const session = sessions[token];
+  const key = hashToken(token);
+  const session = sessions[key];
   if (!session) return null;
-  if (session.expiresAt < Date.now()) { delete sessions[token]; return null; }
+  if (session.expiresAt < Date.now()) { delete sessions[key]; saveSessions(); return null; }
   return session;
 }
 
@@ -1055,15 +1080,22 @@ const server = http.createServer((req, res) => {
       seller.verification[`${type}DecidedAt`] = new Date().toISOString();
       writeJSON('sellers.json', sellers);
 
-      if (decision === 'Verified') {
+      {
         const TYPE_LABELS = { identity: 'Identity', bank: 'Bank account', business: 'Business (CAC)' };
         const label = TYPE_LABELS[type] || type;
-        // Identity approval is the one that unlocks posting products, so it
-        // gets the "your account is verified" message; bank/business get
-        // their own specific one.
-        const message = type === 'identity'
-          ? 'SellHub: Congratulations! Your seller account has been verified ✅ You can now start posting products and selling on SellHub.'
-          : `SellHub: Good news! Your ${label} verification has been approved. ✅`;
+        let message, subject;
+        if (decision === 'Verified') {
+          // Identity approval is the one that unlocks posting products, so it
+          // gets the "your account is verified" message; bank/business get
+          // their own specific one.
+          message = type === 'identity'
+            ? 'SellHub: Congratulations! Your seller account has been verified ✅ You can now start posting products and selling on SellHub.'
+            : `SellHub: Good news! Your ${label} verification has been approved. ✅`;
+          subject = type === 'identity' ? 'Your SellHub seller account is verified' : `Your ${label} verification was approved`;
+        } else {
+          message = `SellHub: Your ${label} verification could not be approved. Please open the Verification Center in your seller dashboard, check that your documents are clear and match your details, and submit again.`;
+          subject = `Your ${label} verification needs attention`;
+        }
         // WhatsApp number from store setup first, then business phone, then
         // the phone they signed up with — so a seller is never skipped just
         // because one of those is empty.
@@ -1085,9 +1117,9 @@ const server = http.createServer((req, res) => {
         // WhatsApp message doesn't get through.
         sendEmail(
           seller.email,
-          type === 'identity' ? 'Your SellHub seller account is verified' : `Your ${label} verification was approved`,
+          subject,
           `<p>Hello ${seller.fullName || ''},</p><p>${message.replace(/^SellHub:\s*/, '')}</p>`
-        ).catch(err => console.log('Email error (verification approved):', err.message));
+        ).catch(err => console.log('Email error (verification decision):', err.message));
       }
 
       sendJSON(res, { ok: true, message: `${type} ${decision.toLowerCase()}.` });
@@ -2517,7 +2549,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/logout') {
     const header = req.headers['authorization'] || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (token) delete sessions[token];
+    if (token) { delete sessions[hashToken(token)]; saveSessions(); }
     sendJSON(res, { ok: true });
     return;
   }
@@ -2571,6 +2603,7 @@ const server = http.createServer((req, res) => {
 // by the time the first request comes in, customers.json/sellers.json/etc
 // already reflect the real, last-known data instead of whatever shipped in
 // the git repo.
+loadSessionsFromDisk();
 restoreAllFiles((fileName, contents) => {
   fs.writeFileSync(path.join(DATA_DIR, fileName), contents);
 }, DATA_FILES)
@@ -2582,6 +2615,7 @@ restoreAllFiles((fileName, contents) => {
       if (fileName === 'pendingSignups.json') Object.assign(pendingSignups, parsed);
       if (fileName === 'pendingSellerSignups.json') Object.assign(pendingSellerSignups, parsed);
       if (fileName === 'resetCodes.json') Object.assign(resetCodes, parsed);
+      if (fileName === 'sessions.json') Object.assign(sessions, parsed);
     } catch (e) { /* ignore a corrupt/empty backup, start fresh */ }
   }, CODE_STATE_FILES))
   .finally(() => {
