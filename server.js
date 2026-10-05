@@ -414,9 +414,25 @@ function getSettings() {
 // order, and the seller withdrawal fee — but the withdrawal fee only counts
 // once a withdrawal is actually Approved (a Rejected one refunds the seller
 // their full amount, fee included, so nothing was really earned from it).
+// Only REAL money counts. Wallets could only be funded for free by the old
+// demo deposit until the first real Paystack payment was credited, so any
+// order or withdrawal dated before that moment is demo data and is ignored.
+// With no real deposit yet, revenue is exactly 0.
+function getRealMoneyStart() {
+  let earliest = Infinity;
+  for (const p of readPayments()) {
+    if (p.status !== 'success') continue;
+    const t = Date.parse(p.creditedAt || p.createdAt);
+    if (!isNaN(t) && t < earliest) earliest = t;
+  }
+  return earliest;
+}
+
 function getPlatformRevenue() {
-  const orders = readJSON('orders.json');
-  const withdrawals = readJSON('withdrawals.json');
+  const start = getRealMoneyStart();
+  const isReal = r => Date.parse(r.date) >= start;
+  const orders = readJSON('orders.json').filter(isReal);
+  const withdrawals = readJSON('withdrawals.json').filter(isReal);
 
   const customerFeeRevenue = orders.reduce((sum, o) => sum + (o.serviceFee || 0), 0);
   const withdrawalFeeRevenue = withdrawals
