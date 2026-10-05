@@ -57,8 +57,8 @@
   .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:18px;}
   .p-card{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:16px; cursor:pointer; box-shadow:var(--shadow-resting); transition:transform .3s, box-shadow .3s, border-color .3s;}
   .p-card:hover{transform:translateY(-4px); box-shadow:var(--shadow-hover); border-color:rgba(15,122,74,0.22);}
-  .p-thumb{height:112px; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
-  .p-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .p-thumb{aspect-ratio:1/1; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
+  .p-thumb img{width:100%; height:100%; object-fit:contain; display:block;}
   .p-thumb .no-photo{display:flex; align-items:center; justify-content:center; height:100%; color:var(--gray-600); font-size:11px;}
   .p-stock-badge{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:var(--radius-pill);}
   .p-stock-badge.in{background:var(--mint-100); color:var(--green-900);}
