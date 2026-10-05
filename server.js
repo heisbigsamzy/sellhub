@@ -761,11 +761,12 @@ const pages = {
 // ---------- PRODUCT VIEWS ----------
 // Each time a shopper opens a product, its view count goes up. Counts are
 // collected in memory and written to products.json every few seconds, so a
-// busy product doesn't rewrite the file on every tap. The same visitor
-// opening the same product again within 30 minutes counts once.
+// busy product doesn't rewrite the file on every tap. Every time a shopper
+// opens a product it counts, including the same shopper coming back; only a
+// double-fire within 3 seconds is ignored (a double tap or page glitch).
 const pendingViews = new Map();   // productId -> views not yet saved
 const recentViewers = new Map();  // "ip|productId" -> last counted time
-const VIEW_DEDUPE_MS = 30 * 60 * 1000;
+const VIEW_DEDUPE_MS = 3 * 1000;
 
 function flushViews() {
   if (pendingViews.size === 0) return;
@@ -782,7 +783,7 @@ setInterval(flushViews, 10 * 1000).unref();
 setInterval(() => {
   const cutoff = Date.now() - VIEW_DEDUPE_MS;
   for (const [k, t] of recentViewers) if (t < cutoff) recentViewers.delete(k);
-}, 10 * 60 * 1000).unref();
+}, 60 * 1000).unref();
 process.on('SIGTERM', () => { try { flushViews(); } catch (e) {} process.exit(0); });
 
 const server = http.createServer((req, res) => {
@@ -1418,8 +1419,8 @@ const server = http.createServer((req, res) => {
   }
 
   // Counts one view of a product (called by the storefront when a shopper
-  // opens it). Public, but only counts real products, once per visitor per
-  // 30 minutes, and never the owning seller looking at their own item.
+  // opens it). Public, only counts real products, and never the owning
+  // seller looking at their own item.
   if (req.method === 'POST' && req.url === '/api/products/view') {
     readBody(req).then((body) => {
       const id = Number(body.id);
