@@ -67,8 +67,11 @@
   .p-card:hover{transform:perspective(800px) rotateX(5deg) rotateY(-5deg) translateY(-8px) scale(1.02); box-shadow:var(--shadow-hover); border-color:rgba(15,122,74,0.22);}
   .p-card::before{content:""; position:absolute; top:-60%; left:-70%; width:45%; height:220%; background:linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent); transform:rotate(20deg); transition:left .7s ease; pointer-events:none;}
   .p-card:hover::before{left:130%;}
-  .p-thumb{aspect-ratio:1/1; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
+  .p-thumb{aspect-ratio:4/5; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
   .p-thumb img{width:100%; height:100%; object-fit:contain; display:block;}
+  .p-thumb img.pt-bg{position:absolute; inset:0; object-fit:cover; filter:blur(16px) saturate(1.1); transform:scale(1.3); opacity:.55;}
+  .p-thumb img:not(.pt-bg){position:relative; z-index:1;}
+  .p-thumb .p-stock-badge{z-index:2;}
   .p-stock-badge{position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:var(--radius-pill);}
   .p-stock-badge.in{background:var(--mint-100); color:var(--green-900);}
   .p-stock-badge.out{background:#FDEAEA; color:#B4232C;}
@@ -420,6 +423,8 @@
     renderCart();
   }
 
+  // soft blurred copy of the photo behind it, so any empty space around an uncropped photo blends in
+  function thumbBg(p){ return (p.images && p.images[0]) ? `<img class="pt-bg" src="${p.images[0]}" alt="">` : ''; }
   function productThumb(p){
     return (p.images && p.images[0]) ? `<img src="${p.images[0]}">` : '';
   }
@@ -547,7 +552,7 @@
 
     grid.innerHTML = filtered.map(p => `
       <div class="p-card" onclick="viewProduct(${p.id})">
-        <div class="p-thumb">${productThumb(p)}${stockBadge(p)}</div>
+        <div class="p-thumb">${thumbBg(p)}${productThumb(p)}${stockBadge(p)}</div>
         <div class="p-name">${p.name}</div>
         <div class="p-store">${p.storeName}${verifiedBadge(p)}</div>
         <div class="p-rating">${p.avgRating ? stars(p.avgRating) + ' (' + p.reviewCount + ')' : 'No reviews yet'}</div>
@@ -602,7 +607,7 @@
     }
     container.innerHTML = savedProducts.map(p => `
       <div class="p-card" onclick="viewProduct(${p.id})">
-        <div class="p-thumb">${productThumb(p)}${stockBadge(p)}</div>
+        <div class="p-thumb">${thumbBg(p)}${productThumb(p)}${stockBadge(p)}</div>
         <div class="p-name">${p.name}</div>
         <div class="p-store">${p.storeName}${verifiedBadge(p)}</div>
         <div class="p-price">${priceDisplay(p)}</div>
