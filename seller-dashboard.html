@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Seller Dashboard — SellHub</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@560&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
@@ -19,7 +19,7 @@
   html{overflow-x:hidden;}
   body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink); overflow-x:hidden;
     background:radial-gradient(700px 420px at 82% -6%, rgba(63,193,127,0.14), transparent 60%), linear-gradient(180deg, var(--mint-50), #fff 62%);}
-  h1,h2,h3{font-family:'Fraunces',serif; font-weight:560; margin:0; letter-spacing:-0.01em;}
+  h1,h2,h3{font-family:'Manrope',sans-serif; font-weight:800; margin:0; letter-spacing:-0.025em;}
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
   }
@@ -29,9 +29,9 @@
 
   header{background:rgba(255,255,255,0.86); backdrop-filter:blur(14px) saturate(160%); border-bottom:1px solid rgba(11,61,40,0.08); position:sticky; top:0; z-index:10;}
   .nav{max-width:1100px; margin:0 auto; padding:16px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; row-gap:8px; column-gap:10px;}
-  .logo{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:560; font-size:18px; color:var(--ink);}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'Manrope',sans-serif; font-weight:800; font-size:18px; color:var(--ink);}
   .logo-mark{width:28px; height:28px; border-radius:9px; overflow:hidden; position:relative; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; background:linear-gradient(150deg,var(--green-400),var(--green-700)); box-shadow:0 6px 14px -4px rgba(15,122,74,0.4);}
-  .logo-icon{color:#fff; font-family:'Fraunces',serif; font-weight:700; font-size:14px;}
+  .logo-icon{color:#fff; font-family:'Manrope',sans-serif; font-weight:800; font-size:14px;}
   .logo-mark img{width:28px; height:28px; object-fit:cover; display:block; position:absolute; top:0; left:0;}
   .greeting{font-size:13.5px; color:var(--gray-600); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:38vw;}
   .greeting b{color:var(--ink); font-weight:700;}
@@ -60,7 +60,7 @@
   .stat-card{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-resting); transition:box-shadow .3s, transform .3s;}
   .stat-card:hover{transform:translateY(-3px); box-shadow:var(--shadow-hover);}
   .stat-card .lbl{font-size:12px; color:var(--gray-600); font-weight:700;}
-  .stat-card .val{font-family:'Fraunces',serif; font-size:26px; font-weight:560; margin-top:7px; color:var(--green-900);}
+  .stat-card .val{font-family:'Manrope',sans-serif; font-size:26px; font-weight:800; margin-top:7px; color:var(--green-900);}
 
   .tabs{display:flex; gap:4px; margin-bottom:28px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-pill); padding:5px; overflow-x:auto; box-shadow:0 2px 10px -6px rgba(11,15,12,0.08);}
   .tab{padding:11px 18px; font-weight:700; font-size:13.5px; color:var(--gray-600); cursor:pointer; white-space:nowrap; border-radius:var(--radius-pill); transition:color .2s, background .2s, box-shadow .2s;}
@@ -104,7 +104,7 @@
   .p-price-old{font-size:12px; color:var(--gray-600); text-decoration:line-through;}
   .p-sku{font-size:11px; color:var(--gray-600); margin-top:4px;}
   .p-name{font-size:14.5px; font-weight:700; line-height:1.3;}
-  .p-price{font-family:'Fraunces',serif; font-size:17px; font-weight:560; color:var(--green-700);}
+  .p-price{font-family:'Manrope',sans-serif; font-size:17px; font-weight:800; color:var(--green-700);}
   .p-actions{display:flex; gap:8px; margin-top:14px;}
   .p-btn{flex:1; padding:10px; border-radius:var(--radius-pill); font-size:12px; font-weight:700; cursor:pointer; border:none; font-family:'Manrope',sans-serif; transition:transform .2s, background .2s;}
   .p-btn.edit{background:var(--mint-100); color:var(--green-900);}
@@ -157,12 +157,16 @@
   .order-actions{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
 
   .wallet-card{
-    background:linear-gradient(155deg,var(--green-900), #0d3a26);
-    border-radius:var(--radius-lg); padding:32px; color:#fff; position:relative; overflow:hidden;
-    box-shadow:0 30px 60px -24px rgba(11,61,40,0.5);
+    background:linear-gradient(145deg,#0B3D28 0%,#0E5436 58%,#12864F 150%);
+    border-radius:28px; padding:28px; color:#fff; position:relative; overflow:hidden;
+    box-shadow:0 30px 60px -26px rgba(11,61,40,0.65);
   }
-  .wallet-label{font-size:13px; color:rgba(255,255,255,0.65); font-weight:700;}
-  .wallet-balance{font-family:'Fraunces',serif; font-size:44px; font-weight:560; margin-top:6px;}
+  .wallet-card::before{content:""; position:absolute; right:-70px; top:-70px; width:250px; height:250px; border-radius:50%; border:42px solid rgba(255,255,255,0.05); pointer-events:none;}
+  .wallet-card::after{content:""; position:absolute; right:-30px; bottom:-90px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); pointer-events:none;}
+  .wallet-top{display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; font-size:14px; font-weight:800; color:rgba(255,255,255,0.88);}
+  .wallet-cur{font-size:11px; font-weight:800; letter-spacing:.06em; padding:5px 11px; border-radius:99px; background:rgba(255,255,255,0.14);}
+  .wallet-label{font-size:13px; color:rgba(255,255,255,0.68); font-weight:700; margin-top:26px; position:relative; z-index:1;}
+  .wallet-balance{font-family:'Manrope',sans-serif; font-size:46px; font-weight:800; letter-spacing:-0.03em; margin-top:4px; position:relative; z-index:1; font-variant-numeric:tabular-nums; line-height:1.1;}
 
   .withdraw-form{margin-top:26px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:24px; box-shadow:var(--shadow-resting);}
   .withdraw-form label{font-size:12.5px; font-weight:700; margin-top:14px; display:block;}
@@ -179,13 +183,17 @@
   .fee-breakdown .row.total{font-weight:800; border-top:1px solid rgba(11,61,40,0.15); margin-top:7px; padding-top:9px;}
 
   .txn-list{margin-top:26px;}
-  .txn-row{display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:15px 20px; margin-bottom:12px; box-shadow:var(--shadow-resting); transition:box-shadow .25s, transform .25s;}
+  .txn-heading{font-weight:800; font-size:16px; margin:0 0 12px; letter-spacing:-0.01em;}
+  .txn-row{display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:14px 18px; margin-bottom:10px; box-shadow:var(--shadow-resting); transition:box-shadow .25s, transform .25s;}
   .txn-row:hover{box-shadow:var(--shadow-hover); transform:translateY(-2px);}
-  .txn-type{font-weight:700; font-size:14px;}
+  .txn-ic{width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; flex-shrink:0;}
+  .txn-ic.in{background:var(--mint-100); color:var(--green-700);}
+  .txn-ic.out{background:#FDEAEA; color:#B4232C;}
+  .txn-main{flex:1; min-width:0;}
+  .txn-type{font-weight:700; font-size:14.5px;}
   .txn-date{font-size:12px; color:var(--gray-600); margin-top:3px;}
-  .txn-amount{font-family:'Fraunces',serif; font-weight:560;}
+  .txn-amount{font-family:'Manrope',sans-serif; font-weight:800; font-size:15.5px; white-space:nowrap; font-variant-numeric:tabular-nums;}
   .txn-amount.in{color:var(--green-700);}
-  .txn-amount.out{color:#B4232C;}
   .txn-status{font-size:11px; font-weight:700; padding:2px 9px; border-radius:var(--radius-pill); margin-left:8px;}
   .txn-status.Pending{background:#FFF3E0; color:#B26A00;}
 
@@ -297,7 +305,8 @@
 
   <div class="panel" id="panel-wallet">
     <div class="wallet-card">
-      <div class="wallet-label">Available Balance</div>
+      <div class="wallet-top"><span>Seller Wallet</span><span class="wallet-cur">NGN</span></div>
+      <div class="wallet-label">Available balance</div>
       <div class="wallet-balance" id="walletBalance">₦0</div>
     </div>
 
@@ -859,16 +868,17 @@
       txnList.innerHTML = `<div class="empty"><h3>No transactions yet</h3><p>Sales and withdrawals will show up here.</p></div>`;
       return;
     }
-    txnList.innerHTML = result.transactions.map(t => {
+    txnList.innerHTML = '<h3 class="txn-heading">Recent activity</h3>' + result.transactions.map(t => {
       const isIn = t.type === 'sale';
-      const label = isIn ? `Sale — Order #${t.orderId}` : 'Withdrawal';
-      const amountText = (isIn ? '+' : '−') + money(isIn ? t.amount : t.amount);
+      const label = isIn ? `Sale · Order #${t.orderId}` : 'Withdrawal';
+      const amountText = (isIn ? '+' : '−') + money(t.amount);
       const statusChip = t.status === 'Pending' ? `<span class="txn-status Pending">Pending</span>` : '';
       return `
         <div class="txn-row">
-          <div>
+          <div class="txn-ic ${isIn ? 'in' : 'out'}">${isIn ? '↓' : '↑'}</div>
+          <div class="txn-main">
             <div class="txn-type">${label}${statusChip}</div>
-            <div class="txn-date">${new Date(t.date).toLocaleString()}</div>
+            <div class="txn-date">${new Date(t.date).toLocaleString('en-NG', {day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit'})}</div>
           </div>
           <div class="txn-amount ${isIn ? 'in' : 'out'}">${amountText}</div>
         </div>
