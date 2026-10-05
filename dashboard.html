@@ -587,6 +587,15 @@
   async function viewProduct(id){
     const p = products.find(x => x.id === id);
     if (!p) return;
+    // Count this view for the seller (fire-and-forget; never blocks the shopper).
+    try {
+      fetch('/api/products/view', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authToken ? { 'Authorization': 'Bearer ' + authToken } : {}),
+        body: JSON.stringify({ id }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
     const res = await fetch('/api/reviews?productId=' + id);
     const result = await res.json();
     const reviews = result.reviews || [];

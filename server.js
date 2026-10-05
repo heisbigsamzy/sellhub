@@ -759,32 +759,15 @@ const pages = {
 };
 
 // ---------- PRODUCT VIEWS ----------
-// Each time a shopper opens a product, its view count goes up. Counts are
-// collected in memory and written to products.json every few seconds, so a
-// busy product doesn't rewrite the file on every tap. Every time a shopper
-// opens a product it counts, including the same shopper coming back; only a
-// double-fire within 3 seconds is ignored (a double tap or page glitch).
-const pendingViews = new Map();   // productId -> views not yet saved
+// Every time a shopper opens a product its view count goes up by one and is
+// saved straight away, so the seller sees it within seconds. Only a double-fire
+// from the same visitor within 2 seconds (a double tap) is ignored.
 const recentViewers = new Map();  // "ip|productId" -> last counted time
-const VIEW_DEDUPE_MS = 3 * 1000;
-
-function flushViews() {
-  if (pendingViews.size === 0) return;
-  const products = readJSON('products.json');
-  let changed = false;
-  for (const [id, n] of pendingViews) {
-    const p = products.find(x => x.id === id);
-    if (p) { p.views = (p.views || 0) + n; changed = true; }
-  }
-  pendingViews.clear();
-  if (changed) writeJSON('products.json', products);
-}
-setInterval(flushViews, 10 * 1000).unref();
+const VIEW_DEDUPE_MS = 2 * 1000;
 setInterval(() => {
-  const cutoff = Date.now() - VIEW_DEDUPE_MS;
+  const cutoff = Date.now() - 60 * 1000;
   for (const [k, t] of recentViewers) if (t < cutoff) recentViewers.delete(k);
 }, 60 * 1000).unref();
-process.on('SIGTERM', () => { try { flushViews(); } catch (e) {} process.exit(0); });
 
 const server = http.createServer((req, res) => {
 
@@ -1418,24 +1401,21 @@ const server = http.createServer((req, res) => {
     return sendJSON(res, { ok: true, products: withRatings });
   }
 
-  // Counts one view of a product (called by the storefront when a shopper
-  // opens it). Public, only counts real products, and never the owning
-  // seller looking at their own item.
+  // Counts one view of a product (called when a shopper opens it).
   if (req.method === 'POST' && req.url === '/api/products/view') {
     readBody(req).then((body) => {
       const id = Number(body.id);
-      const product = readJSON('products.json').find(p => p.id === id);
+      const products = readJSON('products.json');
+      const product = products.find(p => p.id === id);
       if (!product) return sendJSON(res, { ok: false });
       const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-      const session = getSession(req);
-      if (session && session.email === product.sellerEmail) return sendJSON(res, { ok: true });
       const key = ip + '|' + id;
-      const last = recentViewers.get(key) || 0;
-      if (Date.now() - last > VIEW_DEDUPE_MS) {
+      if (Date.now() - (recentViewers.get(key) || 0) > VIEW_DEDUPE_MS) {
         recentViewers.set(key, Date.now());
-        pendingViews.set(id, (pendingViews.get(id) || 0) + 1);
+        product.views = (product.views || 0) + 1;
+        writeJSON('products.json', products);
       }
-      sendJSON(res, { ok: true });
+      sendJSON(res, { ok: true, views: product.views || 0 });
     }).catch(() => sendJSON(res, { ok: false }));
     return;
   }

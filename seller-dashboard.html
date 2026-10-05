@@ -1135,6 +1135,27 @@
   setInterval(() => {
     loadOrders();
   }, 15000);
+
+  // Keep the view counts live: re-check every few seconds and the moment the
+  // seller comes back to this tab. Only redraws the product grid when a count changed.
+  async function refreshViews(){
+    if (!seller || document.hidden) return;
+    try {
+      const res = await authedFetch('/api/seller/products');
+      const result = await res.json();
+      const fresh = result.products || [];
+      const changed = fresh.length !== products.length ||
+        fresh.some(f => { const o = products.find(p => p.id === f.id); return !o || (o.views || 0) !== (f.views || 0); });
+      if (changed) {
+        products = fresh;
+        document.getElementById('statProducts').textContent = products.length;
+        document.getElementById('statViews').textContent = products.reduce((s, p) => s + (p.views || 0), 0).toLocaleString('en-NG');
+        renderProducts();
+      }
+    } catch (e) {}
+  }
+  setInterval(refreshViews, 4000);
+  document.addEventListener('visibilitychange', refreshViews);
 </script>
 </body>
 </html>
