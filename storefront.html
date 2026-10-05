@@ -242,6 +242,16 @@
   async function viewProduct(id){
     const p = products.find(x => x.id === id);
     if (!p) return;
+    // Count this view for the seller (fire-and-forget; a failure never blocks the shopper).
+    try {
+      const tok = authToken || localStorage.getItem('sellhub_seller_token');
+      fetch('/api/products/view', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, tok ? { 'Authorization': 'Bearer ' + tok } : {}),
+        body: JSON.stringify({ id }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
     const res = await fetch('/api/reviews?productId=' + id);
     const result = await res.json();
     const reviews = result.reviews || [];

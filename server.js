@@ -758,6 +758,33 @@ const pages = {
   '/admin-dashboard': 'admin-dashboard.html',
 };
 
+// ---------- PRODUCT VIEWS ----------
+// Each time a shopper opens a product, its view count goes up. Counts are
+// collected in memory and written to products.json every few seconds, so a
+// busy product doesn't rewrite the file on every tap. The same visitor
+// opening the same product again within 30 minutes counts once.
+const pendingViews = new Map();   // productId -> views not yet saved
+const recentViewers = new Map();  // "ip|productId" -> last counted time
+const VIEW_DEDUPE_MS = 30 * 60 * 1000;
+
+function flushViews() {
+  if (pendingViews.size === 0) return;
+  const products = readJSON('products.json');
+  let changed = false;
+  for (const [id, n] of pendingViews) {
+    const p = products.find(x => x.id === id);
+    if (p) { p.views = (p.views || 0) + n; changed = true; }
+  }
+  pendingViews.clear();
+  if (changed) writeJSON('products.json', products);
+}
+setInterval(flushViews, 10 * 1000).unref();
+setInterval(() => {
+  const cutoff = Date.now() - VIEW_DEDUPE_MS;
+  for (const [k, t] of recentViewers) if (t < cutoff) recentViewers.delete(k);
+}, 10 * 60 * 1000).unref();
+process.on('SIGTERM', () => { try { flushViews(); } catch (e) {} process.exit(0); });
+
 const server = http.createServer((req, res) => {
 
   // Ignore any ?query=string when matching a page, so returning from
@@ -1384,9 +1411,32 @@ const server = http.createServer((req, res) => {
         // identity — phone verification alone (automatic at signup) isn't enough.
         const seller = sellers.find(s => s.email === p.sellerEmail);
         const sellerVerified = !!(seller && seller.verification && seller.verification.identityStatus === 'Verified');
-        return { ...p, avgRating: avg, reviewCount: productReviews.length, sellerVerified };
+        const { views, ...publicProduct } = p; // view counts are for the seller only
+        return { ...publicProduct, avgRating: avg, reviewCount: productReviews.length, sellerVerified };
       });
     return sendJSON(res, { ok: true, products: withRatings });
+  }
+
+  // Counts one view of a product (called by the storefront when a shopper
+  // opens it). Public, but only counts real products, once per visitor per
+  // 30 minutes, and never the owning seller looking at their own item.
+  if (req.method === 'POST' && req.url === '/api/products/view') {
+    readBody(req).then((body) => {
+      const id = Number(body.id);
+      const product = readJSON('products.json').find(p => p.id === id);
+      if (!product) return sendJSON(res, { ok: false });
+      const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+      const session = getSession(req);
+      if (session && session.email === product.sellerEmail) return sendJSON(res, { ok: true });
+      const key = ip + '|' + id;
+      const last = recentViewers.get(key) || 0;
+      if (Date.now() - last > VIEW_DEDUPE_MS) {
+        recentViewers.set(key, Date.now());
+        pendingViews.set(id, (pendingViews.get(id) || 0) + 1);
+      }
+      sendJSON(res, { ok: true });
+    }).catch(() => sendJSON(res, { ok: false }));
+    return;
   }
 
   // ---------- FEE INFO (public — just the percentage, for display before checkout) ----------

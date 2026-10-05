@@ -103,6 +103,7 @@
   .p-price-row{display:flex; align-items:center; gap:6px; margin-top:8px;}
   .p-price-old{font-size:12px; color:var(--gray-600); text-decoration:line-through;}
   .p-sku{font-size:11px; color:var(--gray-600); margin-top:4px;}
+  .p-views{font-size:12px; color:var(--gray-600); font-weight:600; margin-top:4px;}
   .p-name{font-size:14.5px; font-weight:700; line-height:1.3;}
   .p-price{font-family:'Manrope',sans-serif; font-size:17px; font-weight:800; color:var(--green-700);}
   .p-actions{display:flex; gap:8px; margin-top:14px;}
@@ -258,6 +259,7 @@
   <div class="stat-row">
     <div class="stat-card"><div class="lbl">Available Balance</div><div class="val" id="statBalance">₦0</div></div>
     <div class="stat-card"><div class="lbl">Total Products</div><div class="val" id="statProducts">0</div></div>
+    <div class="stat-card"><div class="lbl">Total Views</div><div class="val" id="statViews">0</div></div>
     <div class="stat-card"><div class="lbl">Total Orders</div><div class="val" id="statOrders">0</div></div>
   </div>
 
@@ -292,6 +294,7 @@
         <option value="priceLow">Price: Low to High</option>
         <option value="priceHigh">Price: High to Low</option>
         <option value="nameAZ">Name: A to Z</option>
+        <option value="views">Most viewed</option>
       </select>
     </div>
     <div class="grid" id="productGrid"></div>
@@ -604,6 +607,7 @@
     const result = await res.json();
     products = result.products || [];
     document.getElementById('statProducts').textContent = products.length;
+    document.getElementById('statViews').textContent = products.reduce((s, p) => s + (p.views || 0), 0).toLocaleString('en-NG');
     renderProducts();
   }
 
@@ -628,6 +632,7 @@
 
     if (sort === 'priceLow') visible.sort((a, b) => a.price - b.price);
     else if (sort === 'priceHigh') visible.sort((a, b) => b.price - a.price);
+    else if (sort === 'views') visible.sort((a, b) => (b.views || 0) - (a.views || 0));
     else if (sort === 'nameAZ') visible.sort((a, b) => a.name.localeCompare(b.name));
     else visible.sort((a, b) => b.id - a.id);
 
@@ -652,6 +657,7 @@
           </div>
           <div class="p-name">${p.name}</div>
           <div class="p-price-row">${priceRow}</div>
+          <div class="p-views">👁 ${(p.views || 0).toLocaleString('en-NG')} ${p.views === 1 ? 'view' : 'views'}</div>
           ${p.sku ? `<div class="p-sku">SKU: ${p.sku}</div>` : ''}
           <div class="p-actions">
             <button class="p-btn edit" onclick="openProductModal(${p.id})">Edit</button>
