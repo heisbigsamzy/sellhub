@@ -679,6 +679,14 @@ const server = http.createServer((req, res) => {
   // Ignore any ?query=string when matching a page, so returning from
   // Paystack to /dashboard?deposit=success still loads the dashboard.
   const pagePath = req.url.split('?')[0];
+  if (req.method === 'GET' && pagePath === '/logo.jpg') {
+    fs.readFile(path.join(__dirname, 'logo.jpg'), (err, img) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+      res.end(img);
+    });
+    return;
+  }
   if (req.method === 'GET' && pages[pagePath]) { serveFile(res, pages[pagePath]); return; }
 
   // Every storefront shares one page (storefront.html); the page itself

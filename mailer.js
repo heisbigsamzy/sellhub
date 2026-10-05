@@ -70,7 +70,20 @@ if (RESEND_API_KEY && !RESEND_FROM) {
   console.warn('⚠️  RESEND_API_KEY is set but RESEND_FROM is not — using EmailJS instead.');
 }
 
+// Wraps every email in a branded layout with the SellHub logo on top. The logo
+// is served by this app at /logo.jpg (set PUBLIC_URL if the site address changes).
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://sellhub-nlbd.onrender.com').replace(/\/+$/, '');
+function brandedHtml(inner) {
+  return `<div style="background:#f4f6f5;padding:24px 12px;font-family:Arial,sans-serif">` +
+    `<div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;color:#1a1a1a">` +
+    `<div style="text-align:center;margin-bottom:16px"><img src="${PUBLIC_URL}/logo.jpg" alt="SellHub" width="120" height="120" style="display:inline-block;border:0"></div>` +
+    inner +
+    `<p style="color:#888;font-size:12px;margin:24px 0 0;text-align:center">SellHub · Buy · Sell · Grow</p>` +
+    `</div></div>`;
+}
+
 async function callResend(to, subject, html) {
+  html = brandedHtml(html);
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -86,11 +99,9 @@ async function callResend(to, subject, html) {
 function sendOTPEmail(toEmail, code) {
   if (resendEnabled) {
     return callResend(toEmail, `Your SellHub verification code: ${code}`,
-      `<div style="font-family:Arial,sans-serif;max-width:420px">` +
-      `<h2 style="margin:0 0 12px">SellHub</h2>` +
-      `<p>Your verification code is:</p>` +
-      `<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:8px 0">${code}</p>` +
-      `<p style="color:#666">It expires in 10 minutes. If you didn't request it, ignore this email.</p></div>`);
+      `<p style="margin:0 0 8px">Your verification code is:</p>` +
+      `<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:8px 0;text-align:center">${code}</p>` +
+      `<p style="color:#666">It expires in 10 minutes. If you didn't request it, ignore this email.</p>`);
   }
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const timeString = expiresAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
