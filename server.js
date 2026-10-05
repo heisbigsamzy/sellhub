@@ -74,10 +74,46 @@ if (!ADMIN_WHATSAPP_PHONE) {
   console.warn('⚠️  ADMIN_WHATSAPP_PHONE is not set — admin WhatsApp alerts (verifications, withdrawals, disputes) are switched off.');
 }
 
+// Your own email address, so the same admin alerts also land in your inbox
+// — a second channel in case WhatsApp is down or over its plan limit.
+// Set ADMIN_EMAIL in Render -> Environment.
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
+
+if (!ADMIN_EMAIL) {
+  console.warn('⚠️  ADMIN_EMAIL is not set — admin alerts will only go to WhatsApp, not email.');
+}
+
 // Fire-and-forget: never throws, never blocks the request that triggered it.
+// Goes out on both channels (WhatsApp and email) — each is skipped on its
+// own if it isn't configured, and one failing never stops the other.
 function notifyAdmin(message) {
-  if (!ADMIN_WHATSAPP_PHONE) return;
-  sendWhatsApp(ADMIN_WHATSAPP_PHONE, message).catch(err => console.log('WhatsApp error (admin alert):', err.message));
+  if (ADMIN_WHATSAPP_PHONE) {
+    sendWhatsApp(ADMIN_WHATSAPP_PHONE, message).catch(err => console.log('WhatsApp error (admin alert):', err.message));
+  }
+  if (ADMIN_EMAIL) {
+    sendEmail(ADMIN_EMAIL, 'SellHub admin alert', `<p>${message}</p>`)
+      .catch(err => console.log('Email error (admin alert):', err.message));
+  }
+}
+
+// Tells a seller the outcome of their withdrawal request — paid, or refunded
+// to their wallet — by WhatsApp and email. Fire-and-forget like the rest.
+function notifySellerWithdrawal(seller, withdrawal, paid) {
+  if (!seller) return;
+  const bankLine = `${withdrawal.bank || 'your bank'} account ending ${String(withdrawal.accountNumber || '').slice(-4)}`;
+  const text = paid
+    ? `✅ Your withdrawal of ₦${withdrawal.netAmount.toLocaleString()} has been paid to your ${bankLine}.`
+    : `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} was not approved, so the full amount has been returned to your SellHub wallet. Please check your bank details and try again.`;
+
+  const phone = seller.whatsappNumber || seller.businessPhone || seller.phone;
+  if (phone) {
+    sendWhatsApp(phone, `SellHub: ${text}`).catch(err => console.log('WhatsApp error (withdrawal):', err.message));
+  }
+  sendEmail(
+    seller.email,
+    paid ? 'Your SellHub withdrawal has been paid' : 'Your SellHub withdrawal was returned to your wallet',
+    `<p>Hello ${seller.fullName || ''},</p><p>${text}</p>`
+  ).catch(err => console.log('Email error (withdrawal):', err.message));
 }
 
 // ---------- PAYSTACK (real money) ----------
@@ -535,6 +571,12 @@ function notifySellerNewOrder(order) {
         `SellHub: New order #${order.id} from ${order.fullName || 'a customer'}!\nItems: ${itemsList}\nYour payout: ₦${payout.toLocaleString()}`
       ).catch(err => console.log('WhatsApp error:', err.message));
     }
+
+    sendEmail(
+      sellerEmail,
+      `New order #${order.id} on SellHub`,
+      `<p>Hello ${seller.fullName || ''},</p><p>You have a new order #${order.id} from ${order.fullName || 'a customer'}.</p><p>Items: ${itemsList}</p><p>Your payout: ₦${payout.toLocaleString()}</p><p>Open your seller dashboard to process it.</p>`
+    ).catch(err => console.log('Email error (new order):', err.message));
   });
 }
 
@@ -895,6 +937,7 @@ const server = http.createServer((req, res) => {
           seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;
           writeJSON('sellers.json', sellers);
         }
+        notifySellerWithdrawal(seller, withdrawal, false);
         return sendJSON(res, { ok: true, message: 'Withdrawal rejected and refunded to the seller\'s wallet.' });
       }
 
@@ -912,6 +955,7 @@ const server = http.createServer((req, res) => {
         if (txn) txn.status = 'Approved';
         writeJSON('sellers.json', sellers);
       }
+      notifySellerWithdrawal(seller, withdrawal, true);
       return sendJSON(res, { ok: true, message: 'Marked as approved & paid. Remember: SellHub did NOT send any money — make sure you actually transferred it to the seller yourself.' });
     });
     return;
@@ -1012,6 +1056,14 @@ const server = http.createServer((req, res) => {
             })
             .catch(err => console.log('WhatsApp error:', err.message));
         }
+
+        // Same news by email too, so the seller still hears even if the
+        // WhatsApp message doesn't get through.
+        sendEmail(
+          seller.email,
+          type === 'identity' ? 'Your SellHub seller account is verified' : `Your ${label} verification was approved`,
+          `<p>Hello ${seller.fullName || ''},</p><p>${message.replace(/^SellHub:\s*/, '')}</p>`
+        ).catch(err => console.log('Email error (verification approved):', err.message));
       }
 
       sendJSON(res, { ok: true, message: `${type} ${decision.toLowerCase()}.` });
