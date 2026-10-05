@@ -990,9 +990,26 @@ const server = http.createServer((req, res) => {
       if (decision === 'Verified') {
         const TYPE_LABELS = { identity: 'Identity', bank: 'Bank account', business: 'Business (CAC)' };
         const label = TYPE_LABELS[type] || type;
-        const sellerPhone = seller.whatsappNumber || seller.businessPhone;
-        if (sellerPhone) {
-          sendWhatsApp(sellerPhone, `SellHub: Good news! Your ${label} verification has been approved. ✅`)
+        // Identity approval is the one that unlocks posting products, so it
+        // gets the "your account is verified" message; bank/business get
+        // their own specific one.
+        const message = type === 'identity'
+          ? 'SellHub: Congratulations! Your seller account has been verified ✅ You can now start posting products and selling on SellHub.'
+          : `SellHub: Good news! Your ${label} verification has been approved. ✅`;
+        // WhatsApp number from store setup first, then business phone, then
+        // the phone they signed up with — so a seller is never skipped just
+        // because one of those is empty.
+        const sellerPhone = seller.whatsappNumber || seller.businessPhone || seller.phone;
+        if (!sellerPhone) {
+          console.log('Verification WhatsApp skipped for', seller.email, '— no phone number on file.');
+        } else {
+          sendWhatsApp(sellerPhone, message)
+            .then(result => {
+              // sendWhatsApp never throws; it reports failure in the result.
+              // Logged here so Render's logs show exactly why a seller
+              // didn't get the message (bad number, WhatsApp provider limit, etc).
+              if (!result.ok) console.log('Verification WhatsApp NOT delivered to', seller.email, '— reason:', result.reason);
+            })
             .catch(err => console.log('WhatsApp error:', err.message));
         }
       }
