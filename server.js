@@ -1401,6 +1401,88 @@ const server = http.createServer((req, res) => {
     return sendJSON(res, { ok: true, products: withRatings });
   }
 
+  // ---------- ADMIN: DELETE SELLER PERMANENTLY ----------
+  // Removes the seller's account and everything that belongs only to them
+  // (profile, ID/selfie/CAC photos, store images, products, product reviews,
+  // notifications, login sessions, pending codes) so the same email can sign
+  // up again from scratch. Order, payout and dispute records stay because they
+  // are customer and money history, but they are detached from the email so a
+  // fresh account never inherits them.
+  if (req.method === 'POST' && req.url === '/api/admin/sellers/delete') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then((body) => {
+      const email = normalizeEmail(body.email);
+      const sellers = readJSON('sellers.json');
+      const seller = sellers.find(s => s.email === email);
+      if (!seller) return sendJSON(res, { ok: false, message: 'Seller not found.' });
+      if (normalizeEmail(body.confirmEmail) !== email) {
+        return sendJSON(res, { ok: false, message: 'Type the seller\'s email exactly to confirm.' });
+      }
+
+      const orders = readJSON('orders.json');
+      const withdrawals = readJSON('withdrawals.json');
+      const openOrders = orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled' &&
+        (o.items || []).some(i => i.sellerEmail === email));
+      const openPayouts = withdrawals.filter(w => w.sellerEmail === email && (w.status === 'Pending' || w.status === 'Processing'));
+      if (!body.force) {
+        const warnings = [];
+        if (seller.walletBalance > 0) warnings.push(`Their wallet still holds ₦${Number(seller.walletBalance).toLocaleString()}, which will be erased.`);
+        if (openOrders.length) warnings.push(`${openOrders.length} order(s) from this seller are not delivered or cancelled yet.`);
+        if (openPayouts.length) warnings.push(`${openPayouts.length} withdrawal request(s) are still pending or processing.`);
+        if (warnings.length) return sendJSON(res, { ok: false, needsConfirm: true, warnings });
+      }
+
+      const products = readJSON('products.json');
+      const myProductIds = new Set(products.filter(p => p.sellerEmail === email).map(p => p.id));
+
+      // Every photo file this seller owned (profile + their products).
+      const blobRe = /\/blob\/[a-f0-9]{48}\.(?:jpg|png|webp|gif|pdf)/g;
+      const ownedBlobs = new Set(
+        (JSON.stringify(seller) + JSON.stringify(products.filter(p => p.sellerEmail === email))).match(blobRe) || []
+      );
+
+      // Remove the seller's own records.
+      writeJSON('sellers.json', sellers.filter(s => s.email !== email));
+      writeJSON('products.json', products.filter(p => p.sellerEmail !== email));
+      writeJSON('reviews.json', readJSON('reviews.json').filter(r => !myProductIds.has(r.productId)));
+      writeJSON('seller-notifications.json', readJSON('seller-notifications.json').filter(n => n.sellerEmail !== email));
+
+      // Keep order / payout / dispute history, but detach it from this email.
+      const tombstone = `deleted-seller-${crypto.randomBytes(4).toString('hex')}@deleted.invalid`;
+      for (const file of ['orders.json', 'withdrawals.json', 'admin-withdrawals.json', 'disputes.json']) {
+        const raw = JSON.stringify(readJSON(file));
+        const detached = raw.split(JSON.stringify(email)).join(JSON.stringify(tombstone));
+        if (detached !== raw) writeJSON(file, JSON.parse(detached));
+      }
+
+      // Log them out everywhere and drop any half-finished signup / reset codes.
+      for (const [key, sess] of Object.entries(sessions)) {
+        if (sess.email === email && sess.accountType === 'seller') delete sessions[key];
+      }
+      saveSessions();
+      // Write right now (not on the usual 1s delay) so an old login token can
+      // never come back after a restart and work on a re-registered account.
+      try { fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions)); } catch (e) { console.log('Could not save sessions:', e.message); }
+      delete pendingSellerSignups[email];
+      delete resetCodes[email];
+      persistCodeState();
+
+      // Delete photo files — but never one that another record still points to.
+      let stillUsed = '';
+      for (const file of DATA_FILES) { try { stillUsed += JSON.stringify(readJSON(file)); } catch (e) {} }
+      let filesRemoved = 0;
+      for (const url of ownedBlobs) {
+        if (stillUsed.includes(url)) continue;
+        try { fs.unlinkSync(path.join(BLOB_DIR, path.basename(url))); filesRemoved++; } catch (e) {}
+      }
+
+      console.log(`Admin ${session.email} permanently deleted seller ${email} (${myProductIds.size} products, ${filesRemoved} photo files).`);
+      sendJSON(res, { ok: true, message: `Seller deleted permanently. They can register again with ${email}.` });
+    }).catch(() => sendJSON(res, { ok: false, message: 'Could not delete the seller.' }));
+    return;
+  }
+
   // Counts one view of a product (called when a shopper opens it).
   if (req.method === 'POST' && req.url === '/api/products/view') {
     readBody(req).then((body) => {

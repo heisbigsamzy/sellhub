@@ -770,6 +770,7 @@
           ${s.suspended
             ? `<button class="btn approve" onclick="suspendSeller('${s.email}', false)">Reinstate</button>`
             : `<button class="btn reject" onclick="suspendSeller('${s.email}', true)">Suspend Seller</button>`}
+          <button class="btn reject" style="background:#b91c1c; color:#fff;" onclick="deleteSeller('${s.email}')">Delete Permanently</button>
         </div>
       </div>
     `).join('');
@@ -794,6 +795,23 @@
     alert(r.message);
     loadDisputes();
     loadSellers();
+  }
+
+  // Permanently removes a seller and all their data so the same email can register again.
+  async function deleteSeller(email){
+    const typed = prompt('PERMANENT DELETE\n\nThis erases ' + email + ' and ALL their data: profile, ID photos, store, products, reviews and notifications. It cannot be undone. They can then register again from scratch.\n\nType their email to confirm:');
+    if (typed === null) return;
+    const send = async (force) => {
+      const res = await authedFetch('/api/admin/sellers/delete', { method: 'POST', body: JSON.stringify({ email, confirmEmail: typed, force }) });
+      return res.json();
+    };
+    let r = await send(false);
+    if (r.needsConfirm) {
+      if (!confirm('Before deleting:\n\n• ' + r.warnings.join('\n• ') + '\n\nDelete anyway?')) return;
+      r = await send(true);
+    }
+    alert(r.message || (r.ok ? 'Deleted.' : 'Could not delete.'));
+    if (r.ok) { loadSellers(); loadDisputes(); loadStats(); }
   }
 
   async function resolveDispute(id){
