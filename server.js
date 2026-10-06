@@ -1396,7 +1396,8 @@ const server = http.createServer((req, res) => {
         const seller = sellers.find(s => s.email === p.sellerEmail);
         const sellerVerified = !!(seller && seller.verification && seller.verification.identityStatus === 'Verified');
         const { views, ...publicProduct } = p; // view counts are for the seller only
-        return { ...publicProduct, avgRating: avg, reviewCount: productReviews.length, sellerVerified };
+        return { ...publicProduct, avgRating: avg, reviewCount: productReviews.length, sellerVerified,
+          sellerState: (seller && seller.state) || '', sellerCity: (seller && seller.city) || '' };
       });
     return sendJSON(res, { ok: true, products: withRatings });
   }
