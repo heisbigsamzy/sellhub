@@ -82,12 +82,26 @@ function brandedHtml(inner) {
     `</div></div>`;
 }
 
+// Plain-text twin of an HTML email. Sending both parts is standard practice and
+// helps inboxes trust the message; it's also what some mail apps show in previews.
+function htmlToText(html) {
+  return html
+    .replace(/<\/(p|div|h[1-6]|tr|li)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// Replies go to the support inbox instead of the no-reply address.
+const RESEND_REPLY_TO = (process.env.RESEND_REPLY_TO || 'support@sellhubmarket.xyz').trim();
+
 async function callResend(to, subject, html) {
+  const text = htmlToText(html) + '\n\nSellHub - Buy, Sell, Grow';
   html = brandedHtml(html);
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html }),
+    body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html, text, reply_to: RESEND_REPLY_TO }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -98,7 +112,8 @@ async function callResend(to, subject, html) {
 
 function sendOTPEmail(toEmail, code) {
   if (resendEnabled) {
-    return callResend(toEmail, `Your SellHub verification code: ${code}`,
+    // Code first in the subject, so it is readable right in the phone notification.
+    return callResend(toEmail, `${code} is your SellHub verification code`,
       `<p style="margin:0 0 8px">Your verification code is:</p>` +
       `<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:8px 0;text-align:center">${code}</p>` +
       `<p style="color:#666">It expires in 10 minutes. If you didn't request it, ignore this email.</p>`);

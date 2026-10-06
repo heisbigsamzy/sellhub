@@ -29,6 +29,9 @@
     *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
   }
   a:focus-visible, button:focus-visible, input:focus-visible{outline:2.5px solid var(--green-600); outline-offset:2px; border-radius:8px;}
+  .mail-help{background:#FFF8E1; border:1.5px solid #F0C75E; border-radius:12px; padding:12px 14px; margin:12px 0 4px; font-size:13px; line-height:1.55; color:#5c3d00; text-align:left;}
+  .mail-help .resend{width:auto; margin-top:10px; padding:9px 16px; font-size:13px; background:#fff; color:#0B3D28; border:1.5px solid #DCE6E0; box-shadow:none; opacity:1;}
+  .mail-help .resend:disabled{opacity:.6; cursor:not-allowed;}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -52,6 +55,10 @@
 
     <div id="step2">
       <h1 style="font-size:18px;">Enter the code we emailed you</h1>
+            <div class="mail-help">
+        <b>Check your inbox for the code.</b> Can't see it? Open <b>Promotions</b>, <b>Updates</b> or <b>Spam</b> and search for <b>SellHub</b>. If it's there, tap <b>Not spam</b> so next emails arrive normally.
+        <button type="button" id="resendBtn" class="resend" disabled>Resend code</button>
+      </div>
       <input id="code" placeholder="123456">
       <button onclick="checkCode()">Verify & Finish</button>
       <div id="msg2"></div>
@@ -123,6 +130,28 @@
     document.getElementById('phoneCountryWrap').innerHTML = renderCountrySelect();
   });
 
+  
+  // "Can't find the email?" help: a resend button that unlocks after 30 seconds.
+  let resendTimer = null;
+  function startResendTimer(){
+    const btn = document.getElementById('resendBtn');
+    if (!btn) return;
+    let left = 30;
+    clearInterval(resendTimer);
+    btn.disabled = true;
+    btn.textContent = 'Resend code in ' + left + 's';
+    resendTimer = setInterval(() => {
+      left--;
+      if (left <= 0) { clearInterval(resendTimer); btn.disabled = false; btn.textContent = 'Resend code'; }
+      else btn.textContent = 'Resend code in ' + left + 's';
+    }, 1000);
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('resendBtn');
+    if (btn) btn.addEventListener('click', () => { RESEND_ACTION(); });
+  });
+
+  let RESEND_ACTION = () => { signup(); };
   async function signup(){
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
@@ -143,7 +172,7 @@
       const res = await fetch('/api/seller-signup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
       const result = await res.json();
       document.getElementById('msg').textContent = result.message;
-      if (result.ok) document.getElementById('step2').style.display = 'block';
+      if (result.ok) document.getElementById('step2').style.display = 'block'; if (result.ok) startResendTimer();
     } catch (err) {
       document.getElementById('msg').textContent = 'Something went wrong. Please check your connection and try again.';
     } finally {
