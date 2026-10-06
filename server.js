@@ -788,14 +788,6 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (req.method === 'GET' && pagePath === '/pro-theme.css') {
-    fs.readFile(path.join(__dirname, 'pro-theme.css'), (err, css) => {
-      if (err) { res.writeHead(404); res.end('Not found'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
-      res.end(css);
-    });
-    return;
-  }
   if (req.method === 'GET' && pagePath === '/logo.jpg') {
     fs.readFile(path.join(__dirname, 'logo.jpg'), (err, img) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
