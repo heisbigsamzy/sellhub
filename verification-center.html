@@ -59,6 +59,10 @@
   .badge.verified{background:var(--mint-100); color:var(--green-900);}
   .badge.pending{background:var(--amber-100); color:var(--amber-700);}
   .badge.notstarted{background:#f2f2f2; color:var(--gray-600);}
+  .badge.optional{background:#fff4d6; color:#8a5a00; font-weight:800;}
+  .opt-pill{display:inline-block; background:#fff4d6; color:#8a5a00; border:1.5px solid #f0c75e; font-size:11px; font-weight:800; letter-spacing:.05em; padding:3px 10px; border-radius:var(--radius-pill); margin-left:8px; vertical-align:middle;}
+  .opt-tag{display:block; font-size:10.5px; font-weight:800; color:#8a5a00; margin-top:2px;}
+  .optional-note{background:#fff8e1; border:1.5px solid #f0c75e; border-radius:12px; padding:12px 14px; margin-bottom:18px; font-size:13.5px; line-height:1.55; color:#5c3d00;}
   .card-desc{color:var(--gray-600); font-size:13.5px; margin-bottom:18px; line-height:1.55;}
 
   label{font-size:12.5px; font-weight:700; color:var(--gray-600); display:block; margin-top:14px; margin-bottom:6px;}
@@ -111,7 +115,7 @@
     <div class="tracker-step done"><div class="tracker-dot">✓</div><div class="tracker-label">Phone</div></div>
     <div class="tracker-step" id="trackIdentity"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Identity</div></div>
     <div class="tracker-step" id="trackBank"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Bank</div></div>
-    <div class="tracker-step" id="trackBusiness"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Business</div></div>
+    <div class="tracker-step" id="trackBusiness"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Business<span class="opt-tag">Optional</span></div></div>
   </div>
 
   <!-- PHONE -->
@@ -193,10 +197,10 @@
   <!-- BUSINESS -->
   <div class="card">
     <div class="card-top">
-      <h3>🏢 Business Verification</h3>
-      <span class="badge notstarted" id="badgeBusiness">Not started</span>
+      <h3>🏢 Business Verification (CAC) <span class="opt-pill">OPTIONAL</span></h3>
+      <span class="badge optional" id="badgeBusiness">Optional</span>
     </div>
-    <p class="card-desc">Optional, but adds a "Business Verified" badge to your store for extra trust.</p>
+    <div class="optional-note"><strong>This step is optional.</strong> You do <strong>not</strong> need a CAC certificate to sell on SellHub. If you don't have one yet, skip this and come back to add it whenever you get it. When it's approved, your store shows a "Business Verified" badge for extra trust.</div>
     <div id="businessForm">
       <label>CAC registration number</label>
       <input id="cacNumber" placeholder="e.g. RC1234567">
@@ -283,8 +287,13 @@
       note.innerHTML = '<div class="pending-note">⏳ Submitted — under review. This usually takes 1-2 business days.</div>';
       if (track) track.classList.add('pending');
     } else {
-      badge.textContent = 'Not started';
-      badge.className = 'badge notstarted';
+      if (kind === 'Business') {
+        badge.textContent = 'Optional';
+        badge.className = 'badge optional';
+      } else {
+        badge.textContent = 'Not started';
+        badge.className = 'badge notstarted';
+      }
     }
   }
 
