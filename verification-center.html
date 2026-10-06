@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Verification Center — SellHub</title>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --green-900:#0B3D28; --green-700:#0F7A4A; --green-600:#149A5C; --green-400:#3FC17F;
@@ -17,9 +17,9 @@
   }
   *{box-sizing:border-box;}
   html{overflow-x:hidden;}
-  body{margin:0; min-height:100vh; font-family:'Manrope',sans-serif; color:var(--ink); overflow-x:hidden;
+  body{margin:0; min-height:100vh; font-family:'IBM Plex Sans',sans-serif; color:var(--ink); overflow-x:hidden;
     background:radial-gradient(900px 500px at 12% -8%, rgba(63,193,127,0.10), transparent 60%), linear-gradient(180deg, var(--mint-50) 0%, #fff 45%);}
-  h1,h2,h3{font-family:'Manrope',sans-serif; font-weight:800; margin:0; letter-spacing:-0.025em;}
+  h1,h2,h3{font-family:'IBM Plex Sans',sans-serif; font-weight:800; margin:0; letter-spacing:-0.025em;}
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
   }
@@ -29,7 +29,7 @@
 
   header{background:rgba(255,255,255,0.86); backdrop-filter:blur(14px) saturate(160%); border-bottom:1px solid rgba(11,61,40,0.08); position:sticky; top:0; z-index:10;}
   .nav{max-width:820px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:space-between;}
-  .logo{display:flex; align-items:center; gap:10px; font-family:'Manrope',sans-serif; font-weight:800; font-size:18px;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:'IBM Plex Sans',sans-serif; font-weight:800; font-size:18px;}
   .logo-mark{width:28px; height:28px; border-radius:9px; background:linear-gradient(150deg,var(--green-400),var(--green-700)); position:relative; box-shadow:0 6px 14px -4px rgba(15,122,74,0.4); flex-shrink:0;}
   .logo-mark::after{content:"₦"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px;}
   .back-link{font-size:13.5px; font-weight:700; color:var(--gray-600); text-decoration:none; cursor:pointer; transition:color .2s;}
@@ -42,7 +42,7 @@
   /* ---- stepper ---- */
   .tracker{display:flex; align-items:flex-start; margin-bottom:40px; counter-reset:step;}
   .tracker-step{flex:1; display:flex; flex-direction:column; align-items:center; position:relative; counter-increment:step;}
-  .tracker-dot{width:36px; height:36px; border-radius:50%; background:#fff; border:2px solid var(--gray-300); display:flex; align-items:center; justify-content:center; color:var(--gray-600); font-size:14px; font-weight:800; z-index:1; transition:background .3s, border-color .3s, color .3s, box-shadow .3s; font-family:'Manrope',sans-serif;}
+  .tracker-dot{width:36px; height:36px; border-radius:50%; background:#fff; border:2px solid var(--gray-300); display:flex; align-items:center; justify-content:center; color:var(--gray-600); font-size:14px; font-weight:800; z-index:1; transition:background .3s, border-color .3s, color .3s, box-shadow .3s; font-family:'IBM Plex Sans',sans-serif;}
   .tracker-step:not(.done):not(.pending) .tracker-dot::before{content:counter(step);}
   .tracker-step.done .tracker-dot{background:var(--green-700); border-color:var(--green-700); color:#fff; box-shadow:0 0 0 5px rgba(15,122,74,0.14);}
   .tracker-step.pending .tracker-dot{background:var(--amber-700); border-color:var(--amber-700); color:#fff; box-shadow:0 0 0 5px rgba(178,106,0,0.14);}
@@ -66,10 +66,10 @@
   .card-desc{color:var(--gray-600); font-size:13.5px; margin-bottom:18px; line-height:1.55;}
 
   label{font-size:12.5px; font-weight:700; color:var(--gray-600); display:block; margin-top:14px; margin-bottom:6px;}
-  input, select{width:100%; padding:12px 14px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; transition:border-color .2s; background:#fff;}
+  input, select{width:100%; padding:12px 14px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:16px; font-family:'IBM Plex Sans',sans-serif; transition:border-color .2s; background:#fff;}
   input:focus, select:focus{outline:none; border-color:var(--green-600);}
 
-  .btn{padding:13px 22px; border-radius:var(--radius-pill); font-weight:700; font-size:13.5px; cursor:pointer; border:none; font-family:'Manrope',sans-serif; margin-top:16px; transition:transform .2s, box-shadow .2s;}
+  .btn{padding:13px 22px; border-radius:var(--radius-pill); font-weight:700; font-size:13.5px; cursor:pointer; border:none; font-family:'IBM Plex Sans',sans-serif; margin-top:16px; transition:transform .2s, box-shadow .2s;}
   .btn.primary{background:linear-gradient(155deg,var(--green-600),var(--green-900)); color:#fff; box-shadow:0 12px 24px -10px rgba(15,122,74,0.55);}
   .btn.primary:hover{transform:translateY(-1px); box-shadow:0 16px 28px -10px rgba(15,122,74,0.65);}
   .msg{margin-top:10px; font-size:13px; font-weight:700;}
@@ -97,6 +97,7 @@
     .photo-slot, .photo-frame{width:100%;}
   }
 </style>
+<link rel="stylesheet" href="/pro-theme.css">
 </head>
 <body>
 

@@ -1,0 +1,81 @@
+/* SellHub "Pro" theme — shared by the customer + seller account pages.
+   Loaded AFTER each page's own <style>, so these rules refine the look without
+   touching page logic. Remove the <link> to this file in a page to undo it there.
+
+   Direction: a serious, engineered feel — IBM Plex Sans, darker/bolder text,
+   solid (not gradient) buttons, tighter corners, crisp borders, flat page. */
+
+:root{
+  --ink:#0A0F0C;
+  --gray-600:#3B4A42;          /* secondary text, darker than before so it reads firmly */
+  --gray-300:#C5D3CA;          /* firmer borders */
+  --radius-lg:14px; --radius-md:12px; --radius-sm:8px; --radius-pill:8px;
+  --shadow-resting:0 1px 2px rgba(10,15,12,.06), 0 6px 16px -10px rgba(11,61,40,.22);
+  --shadow-hover:0 2px 4px rgba(10,15,12,.08), 0 16px 30px -16px rgba(11,61,40,.34);
+  --shadow-card:0 1px 2px rgba(10,15,12,.08), 0 10px 24px -14px rgba(11,61,40,.3);
+  --shadow-soft:0 24px 60px -24px rgba(10,15,12,.35);
+}
+
+html{-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility;}
+body, button, input, select, textarea{font-family:'IBM Plex Sans','Segoe UI',Helvetica,Arial,sans-serif;}
+body{font-weight:500; color:var(--ink); background:#F2F5F3; background-image:none;}
+h1,h2,h3,h4{font-family:'IBM Plex Sans','Segoe UI',Helvetica,Arial,sans-serif; font-weight:700; letter-spacing:-0.018em; color:var(--ink);}
+.val, .wallet-balance, .modal-price, [class*="price"], [class*="amount"], [class*="balance"]{font-variant-numeric:tabular-nums;}
+
+/* Header */
+header{background:#fff; backdrop-filter:none; -webkit-backdrop-filter:none; border-bottom:1.5px solid var(--gray-300);}
+.logo{font-weight:700; font-size:19px; letter-spacing:-0.02em;}
+.greeting{font-size:14px; font-weight:600; color:var(--gray-600);}
+.greeting b{font-weight:700; color:var(--ink);}
+.logout-btn{background:#fff; color:var(--ink); border:1.5px solid var(--ink); border-radius:8px; font-weight:700; padding:9px 18px; transform:none;}
+.logout-btn:hover{background:var(--ink); color:#fff; border-color:var(--ink); transform:none;}
+
+/* Banner */
+.free-banner{background:var(--green-900); color:#fff; font-weight:600; font-size:13px; letter-spacing:.01em; border-bottom:none;}
+
+/* Tabs */
+.tabs{background:#fff; border:1.5px solid var(--gray-300); border-radius:12px; box-shadow:none; padding:4px;}
+.tab{border-radius:8px; font-weight:600; color:var(--gray-600);}
+.tab:hover{background:var(--mint-100); color:var(--green-900);}
+.tab.active{background:var(--green-900); color:#fff; box-shadow:none;}
+
+/* Buttons: solid fills, no glow */
+.btn.primary, .modal-btn{background:var(--green-700); color:#fff; box-shadow:none; border-radius:8px; font-weight:700; letter-spacing:.005em;}
+.btn.primary:hover, .modal-btn:hover{background:var(--green-900); box-shadow:none; transform:none;}
+.btn, .p-btn, .modal-btn{border-radius:8px;}
+.p-btn.primary{background:var(--green-700); color:#fff; box-shadow:none;}
+.p-btn.primary:hover{background:var(--green-900); box-shadow:none; transform:none;}
+.p-btn{font-weight:700;}
+
+/* Cards */
+.p-card, .stat-card, .card, .modal{border:1.5px solid var(--gray-300); box-shadow:var(--shadow-resting);}
+.p-card:hover{transform:translateY(-3px); box-shadow:var(--shadow-hover); border-color:var(--green-700);}
+.stat-card:hover{transform:none;}
+.p-name{font-weight:700; font-size:15px; color:var(--ink);}
+.p-store{color:var(--gray-600); font-weight:600;}
+.p-price, .p-price-row{font-weight:700; color:var(--green-900);}
+.stat-card .lbl{font-weight:600; color:var(--gray-600); font-size:12.5px;}
+.stat-card .val{font-weight:700; color:var(--ink);}
+
+/* Badges: small squared chips instead of pills */
+.badge, .status-badge, .verified-seller-badge, .p-stock-badge, .category-chip{border-radius:6px; font-weight:700;}
+.opt-pill{border-radius:6px;}
+
+/* Form fields */
+input, select, textarea{font-weight:500; color:var(--ink);}
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea{border:1.5px solid var(--gray-300); border-radius:8px; background:#fff;}
+input:focus, select:focus, textarea:focus{border-color:var(--green-700); outline:none; box-shadow:0 0 0 3px rgba(15,122,74,.16);}
+label{font-weight:600; color:var(--ink);}
+
+/* Wallet keeps its brand gradient but with the tighter corners */
+.wallet-card{border-radius:14px;}
+.wallet-balance{font-weight:700; letter-spacing:-0.025em;}
+
+/* Seller / customer detail text */
+.card-desc, .page-sub{color:var(--gray-600); font-weight:500;}
+.page-title{font-weight:700;}
+
+/* Search boxes and category chips (some pages set a pill radius inline) */
+#searchInput, .p-search{border-radius:8px !important; border:1.5px solid var(--gray-300) !important; font-weight:500;}
+.store-badge{border-radius:8px; font-weight:600; border:1.5px solid var(--gray-300); color:var(--ink);}
+.store-badge.active{background:var(--green-900); border-color:var(--green-900); color:#fff;}
