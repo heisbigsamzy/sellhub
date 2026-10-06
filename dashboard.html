@@ -562,6 +562,34 @@
     `).join('');
   }
 
+  // ---- Marketplace mixing ----
+  // Every product gets a random rank once per visit (so the order stays steady while
+  // the customer searches, filters or adds to cart, but is different next visit).
+  // Products are then dealt out one seller at a time, like cards, so different sellers
+  // appear side by side no matter who posted most or most recently. Items that are
+  // sold out go to the end so shoppers see what they can actually buy first.
+  const mixRank = {};
+  function rankOf(p){ return (mixRank[p.id] = mixRank[p.id] ?? Math.random()); }
+  function dealBySeller(list){
+    const bySeller = new Map();
+    list.forEach(p => {
+      const key = p.sellerEmail || p.storeName || 'unknown';
+      if (!bySeller.has(key)) bySeller.set(key, []);
+      bySeller.get(key).push(p);
+    });
+    const queues = [...bySeller.values()].map(q => q.sort((x, y) => rankOf(x) - rankOf(y)));
+    const out = [];
+    for (let round = 0; queues.some(q => round < q.length); round++) {
+      out.push(...queues.filter(q => round < q.length).map(q => q[round]).sort((x, y) => rankOf(x) - rankOf(y)));
+    }
+    return out;
+  }
+  function mixProducts(list){
+    const inStock = list.filter(p => p.status !== 'Out of Stock');
+    const soldOut = list.filter(p => p.status === 'Out of Stock');
+    return [...dealBySeller(inStock), ...dealBySeller(soldOut)];
+  }
+
   function renderBrowse(){
     const grid = document.getElementById('productGrid');
     const query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
@@ -570,9 +598,8 @@
       if (categoryFilter && p.category !== categoryFilter) return false;
       return true;
     });
-    // Newest products first — products.json appends new ones at the end, and
-    // ids are timestamps, so sorting by id descending puts the latest post up top.
-    filtered = filtered.slice().sort((a, b) => b.id - a.id);
+    // Mix sellers together so one busy seller never fills the top of the page.
+    filtered = mixProducts(filtered);
 
     if (filtered.length === 0) {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><h3>No products found</h3><p>Try a different search term or category.</p></div>`;
