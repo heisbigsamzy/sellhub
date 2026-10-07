@@ -59,10 +59,6 @@
   .badge.verified{background:var(--mint-100); color:var(--green-900);}
   .badge.pending{background:var(--amber-100); color:var(--amber-700);}
   .badge.notstarted{background:#f2f2f2; color:var(--gray-600);}
-  .badge.optional{background:#fff4d6; color:#8a5a00; font-weight:800;}
-  .opt-pill{display:inline-block; background:#fff4d6; color:#8a5a00; border:1.5px solid #f0c75e; font-size:11px; font-weight:800; letter-spacing:.05em; padding:3px 10px; border-radius:var(--radius-pill); margin-left:8px; vertical-align:middle;}
-  .opt-tag{display:block; font-size:10.5px; font-weight:800; color:#8a5a00; margin-top:2px;}
-  .optional-note{background:#fff8e1; border:1.5px solid #f0c75e; border-radius:12px; padding:12px 14px; margin-bottom:18px; font-size:13.5px; line-height:1.55; color:#5c3d00;}
   .card-desc{color:var(--gray-600); font-size:13.5px; margin-bottom:18px; line-height:1.55;}
 
   label{font-size:12.5px; font-weight:700; color:var(--gray-600); display:block; margin-top:14px; margin-bottom:6px;}
@@ -115,7 +111,6 @@
     <div class="tracker-step done"><div class="tracker-dot">✓</div><div class="tracker-label">Phone</div></div>
     <div class="tracker-step" id="trackIdentity"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Identity</div></div>
     <div class="tracker-step" id="trackBank"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Bank</div></div>
-    <div class="tracker-step" id="trackBusiness"><div class="tracker-dot"><div class="tracker-line"></div></div><div class="tracker-label">Business<span class="opt-tag">Optional</span></div></div>
   </div>
 
   <!-- PHONE -->
@@ -193,37 +188,6 @@
     </div>
     <div id="bankStatusNote"></div>
   </div>
-
-  <!-- BUSINESS -->
-  <div class="card">
-    <div class="card-top">
-      <h3>🏢 Business Verification (CAC) <span class="opt-pill">OPTIONAL</span></h3>
-      <span class="badge optional" id="badgeBusiness">Optional</span>
-    </div>
-    <div class="optional-note"><strong>This step is optional.</strong> You do <strong>not</strong> need a CAC certificate to sell on SellHub. If you don't have one yet, skip this and come back to add it whenever you get it. When it's approved, your store shows a "Business Verified" badge for extra trust.</div>
-    <div id="businessForm">
-      <label>CAC registration number</label>
-      <input id="cacNumber" placeholder="e.g. RC1234567">
-      <label>Registered business name</label>
-      <input id="registeredBusinessName" placeholder="As registered with CAC">
-
-      <label>CAC document photo</label>
-      <div class="photo-row">
-        <div class="photo-slot">
-          <div class="photo-frame" onclick="document.getElementById('cacDocInput').click()">
-            <div class="placeholder" id="cacDocPlaceholder"><span class="icon">📄</span>Photo of CAC certificate</div>
-            <img id="cacDocPreview" style="display:none;">
-            <input type="file" id="cacDocInput" accept="image/*" capture="environment" onchange="handlePhoto(this, 'cacDoc')">
-          </div>
-          <div class="photo-caption" id="cacDocCaption">Tap to capture</div>
-        </div>
-      </div>
-
-      <button class="btn primary" onclick="submitBusiness()">Submit for review</button>
-      <div class="msg" id="businessMsg"></div>
-    </div>
-    <div id="businessStatusNote"></div>
-  </div>
 </div>
 
 <script>
@@ -232,7 +196,7 @@
   if (!seller || !authToken) window.location.href = '/login';
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
 
-  // Captured photos live here as compressed base64 JPEGs, keyed by 'idDoc', 'selfie', 'cacDoc'.
+  // Captured photos live here as compressed base64 JPEGs, keyed by 'idDoc' and 'selfie'.
   const capturedPhotos = {};
 
   function handlePhoto(inputEl, key){
@@ -287,13 +251,8 @@
       note.innerHTML = '<div class="pending-note">⏳ Submitted — under review. This usually takes 1-2 business days.</div>';
       if (track) track.classList.add('pending');
     } else {
-      if (kind === 'Business') {
-        badge.textContent = 'Optional';
-        badge.className = 'badge optional';
-      } else {
-        badge.textContent = 'Not started';
-        badge.className = 'badge notstarted';
-      }
+      badge.textContent = 'Not started';
+      badge.className = 'badge notstarted';
     }
   }
 
@@ -303,7 +262,6 @@
     if (!result.ok) return;
     applyStatus('Identity', result.identity);
     applyStatus('Bank', result.bank);
-    applyStatus('Business', result.business);
   }
 
   async function submitIdentity(){
@@ -346,30 +304,6 @@
       return;
     }
     const res = await fetch('/api/seller/verify-bank', { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
-    const result = await res.json();
-    msgEl.textContent = result.message;
-    msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
-    if (result.ok) loadStatus();
-  }
-
-  async function submitBusiness(){
-    const body = {
-      cacNumber: document.getElementById('cacNumber').value.trim(),
-      registeredBusinessName: document.getElementById('registeredBusinessName').value.trim(),
-      cacDocumentImage: capturedPhotos.cacDoc || null
-    };
-    const msgEl = document.getElementById('businessMsg');
-    if (!body.cacNumber || !body.registeredBusinessName) {
-      msgEl.textContent = 'Please fill in every field.';
-      msgEl.style.color = '#B4232C';
-      return;
-    }
-    if (!body.cacDocumentImage) {
-      msgEl.textContent = 'Please capture a photo of your CAC document.';
-      msgEl.style.color = '#B4232C';
-      return;
-    }
-    const res = await fetch('/api/seller/verify-business', { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
     const result = await res.json();
     msgEl.textContent = result.message;
     msgEl.style.color = result.ok ? 'var(--green-700)' : '#B4232C';
