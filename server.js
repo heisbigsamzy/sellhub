@@ -1264,8 +1264,13 @@ const server = http.createServer((req, res) => {
       const counted = mine.filter(o => o.status !== 'Cancelled');
       const last = mine.reduce((d, o) => (!d || o.date > d ? o.date : d), null);
       const addr = c.savedAddress || {};
+      const deposits = (c.transactions || []).filter(t => t.type === 'deposit');
+      const lastDeposit = deposits.reduce((d, t) => (!d || (t.date || '') > d ? t.date : d), null);
       return {
         email: c.email,
+        totalDeposited: deposits.reduce((sum, t) => sum + (t.amount || 0), 0),
+        depositCount: deposits.length,
+        lastDepositAt: lastDeposit,
         fullName: c.fullName || '',
         phone: c.phone || '',
         joinedAt: c.createdAt || null,

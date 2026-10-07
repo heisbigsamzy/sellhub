@@ -211,6 +211,7 @@
         <h1 class="page-title">Customers</h1>
         <p style="font-size:13px; color:var(--gray-600); margin:-6px 0 16px;" id="customersSub">Everyone who signed up as a customer, with what they entered and how much they've bought.</p>
         <input id="customerSearch" type="text" class="search-input" placeholder="Search by name, email, or phone…" oninput="renderCustomers()">
+        <div id="customersLive" style="font-size:12px; color:var(--gray-600); font-weight:600; margin:-6px 0 14px;">Balances update automatically.</div>
         <div id="customersList"></div>
       </div>
 
@@ -370,6 +371,7 @@
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
     closeSidebar();
     window.scrollTo(0, 0);
+    if (name === 'customers') loadCustomers().catch(() => {});
   }
 
   function openSidebar(){
@@ -726,9 +728,20 @@
   async function loadCustomers(){
     const res = await authedFetch('/api/admin/customers');
     const r = await res.json();
-    allCustomers = r.ok ? r.customers : [];
-    renderCustomers();
+    if (!r.ok) return;
+    const changed = JSON.stringify(r.customers) !== JSON.stringify(allCustomers);
+    allCustomers = r.customers;
+    if (changed || firstCustomersLoad) renderCustomers();
+    firstCustomersLoad = false;
+    const live = document.getElementById('customersLive');
+    if (live) live.textContent = 'Live: balances update automatically. Last checked ' + new Date().toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
+  let firstCustomersLoad = true;
+  // Keep balances current while the admin is looking at this tab.
+  setInterval(() => {
+    const onTab = document.getElementById('panel-customers')?.classList.contains('active');
+    if (onTab && !document.hidden) loadCustomers().catch(() => {});
+  }, 8000);
 
   function renderCustomers(){
     const list = document.getElementById('customersList');
@@ -758,9 +771,11 @@
         <div class="row"><span>Email</span><span>${c.email}</span></div>
         <div class="row"><span>Phone number</span><span>${c.phone || '—'}</span></div>
         <div class="row"><span>Signed up with</span><span>${c.signedUpWith}</span></div>
-        <div class="row"><span>Joined</span><span>${fmtDate(c.joinedAt)}</span></div>
+        <div class="row"><span>Joined</span><span>${c.joinedAt ? fmtDate(c.joinedAt) : 'Not recorded (signed up earlier)'}</span></div>
         <div class="row"><span>Saved delivery address</span><span style="max-width:60%; text-align:right;">${[c.address, c.city, c.state].filter(Boolean).join(', ') || '—'}</span></div>
-        <div class="row"><span>Wallet balance</span><span>${money(c.walletBalance)}</span></div>
+        <div class="row"><span>Current wallet balance</span><span style="font-size:15px; font-weight:800; color:var(--green-900);">${money(c.walletBalance)}</span></div>
+        <div class="row"><span>Total deposited</span><span>${money(c.totalDeposited)} (${c.depositCount} deposit${c.depositCount === 1 ? '' : 's'})</span></div>
+        <div class="row"><span>Last deposit</span><span>${fmtDate(c.lastDepositAt)}</span></div>
         <div class="row" style="border-bottom:none;"><span>Last order</span><span>${fmtDate(c.lastOrderAt)}</span></div>
       </div>
     `).join('');
