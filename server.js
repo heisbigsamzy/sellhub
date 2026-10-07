@@ -1252,6 +1252,39 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---------- ADMIN: CUSTOMERS ----------
+  // Everything a customer gave us at signup, plus a little activity so the admin can
+  // see who is actually buying. Passwords (even hashed) are never sent.
+  if (req.method === 'GET' && req.url === '/api/admin/customers') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const orders = readJSON('orders.json');
+    const list = readJSON('customers.json').map(c => {
+      const mine = orders.filter(o => o.customerEmail === c.email);
+      const counted = mine.filter(o => o.status !== 'Cancelled');
+      const last = mine.reduce((d, o) => (!d || o.date > d ? o.date : d), null);
+      const addr = c.savedAddress || {};
+      return {
+        email: c.email,
+        fullName: c.fullName || '',
+        phone: c.phone || '',
+        joinedAt: c.createdAt || null,
+        signedUpWith: c.signedUpWith || 'Email',
+        walletBalance: c.walletBalance || 0,
+        address: addr.address || '',
+        state: addr.state || '',
+        city: addr.city || '',
+        deliveryPhone: addr.phone || '',
+        orderCount: mine.length,
+        totalSpent: counted.reduce((sum, o) => sum + (o.total || 0), 0),
+        lastOrderAt: last
+      };
+    });
+    // Newest signup first (customers.json is appended in signup order).
+    sendJSON(res, { ok: true, customers: list.reverse() });
+    return;
+  }
+
   // ---------- ADMIN: DISPUTES ----------
   if (req.method === 'GET' && req.url === '/api/admin/disputes') {
     const session = requireAuth(req, res, 'admin');
@@ -2560,7 +2593,7 @@ const server = http.createServer((req, res) => {
       if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const customers = readJSON('customers.json');
       const hashedPassword = await bcrypt.hash(pending.formData.password, 10);
-      customers.push({ ...pending.formData, password: hashedPassword });
+      customers.push({ ...pending.formData, password: hashedPassword, createdAt: new Date().toISOString() });
       writeJSON('customers.json', customers);
       delete pendingSignups[email];
       persistCodeState();
@@ -2687,7 +2720,7 @@ const server = http.createServer((req, res) => {
         });
       }
 
-      const newCustomer = { fullName, email, password: hashedPassword };
+      const newCustomer = { fullName, email, password: hashedPassword, createdAt: new Date().toISOString(), signedUpWith: 'Google' };
       customers.push(newCustomer);
       writeJSON('customers.json', customers);
       const token = createSession(email, 'customer');

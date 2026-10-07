@@ -179,6 +179,7 @@
 
     <div class="nav-item active" data-tab="overview" onclick="showTab('overview')"><span class="nav-icon">&#9707;</span>Overview</div>
     <div class="nav-item" data-tab="sellers" onclick="showTab('sellers')"><span class="nav-icon">&#128100;</span>Sellers</div>
+    <div class="nav-item" data-tab="customers" onclick="showTab('customers')"><span class="nav-icon">&#128101;</span>Customers</div>
     <div class="nav-item" data-tab="wallet" onclick="showTab('wallet')"><span class="nav-icon">&#8358;</span>Platform Wallet</div>
     <div class="nav-item" data-tab="withdrawals" onclick="showTab('withdrawals')"><span class="nav-icon">&#8615;</span>Seller Withdrawals<span class="nav-badge" id="navBadgeWithdrawals" style="display:none;"></span></div>
     <div class="nav-item" data-tab="verifications" onclick="showTab('verifications')"><span class="nav-icon">&#10003;</span>Verifications<span class="nav-badge" id="navBadgeVerifications" style="display:none;"></span></div>
@@ -204,6 +205,13 @@
         <p style="font-size:13px; color:var(--gray-600); margin:-6px 0 16px;">Every seller's full registration profile in one place — not just what they submitted for verification.</p>
         <input id="sellerSearch" type="text" class="search-input" placeholder="Search by name, store, or email…" oninput="renderSellers()">
         <div id="sellersList"></div>
+      </div>
+
+      <div class="panel" id="panel-customers">
+        <h1 class="page-title">Customers</h1>
+        <p style="font-size:13px; color:var(--gray-600); margin:-6px 0 16px;" id="customersSub">Everyone who signed up as a customer, with what they entered and how much they've bought.</p>
+        <input id="customerSearch" type="text" class="search-input" placeholder="Search by name, email, or phone…" oninput="renderCustomers()">
+        <div id="customersList"></div>
       </div>
 
       <div class="panel" id="panel-wallet">
@@ -714,6 +722,50 @@
     `).join('');
   }
 
+  let allCustomers = [];
+  async function loadCustomers(){
+    const res = await authedFetch('/api/admin/customers');
+    const r = await res.json();
+    allCustomers = r.ok ? r.customers : [];
+    renderCustomers();
+  }
+
+  function renderCustomers(){
+    const list = document.getElementById('customersList');
+    if (!list) return;
+    const sub = document.getElementById('customersSub');
+    if (sub) sub.textContent = allCustomers.length + ' customer' + (allCustomers.length === 1 ? '' : 's') + ' signed up. Here is what each one entered, plus how much they have bought.';
+    const q = (document.getElementById('customerSearch')?.value || '').toLowerCase().trim();
+    const filtered = !q ? allCustomers : allCustomers.filter(c =>
+      (c.fullName || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      (c.phone || '').toLowerCase().includes(q)
+    );
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="empty"><h3>${allCustomers.length ? 'No customers match' : 'No customers yet'}</h3></div>`;
+      return;
+    }
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    list.innerHTML = filtered.map(c => `
+      <div class="card">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${c.fullName || c.email}</div>
+            <div class="card-sub">${c.orderCount} order${c.orderCount === 1 ? '' : 's'} · ${money(c.totalSpent)} spent</div>
+          </div>
+        </div>
+        <div class="row"><span>Full name</span><span>${c.fullName || '—'}</span></div>
+        <div class="row"><span>Email</span><span>${c.email}</span></div>
+        <div class="row"><span>Phone number</span><span>${c.phone || '—'}</span></div>
+        <div class="row"><span>Signed up with</span><span>${c.signedUpWith}</span></div>
+        <div class="row"><span>Joined</span><span>${fmtDate(c.joinedAt)}</span></div>
+        <div class="row"><span>Saved delivery address</span><span style="max-width:60%; text-align:right;">${[c.address, c.city, c.state].filter(Boolean).join(', ') || '—'}</span></div>
+        <div class="row"><span>Wallet balance</span><span>${money(c.walletBalance)}</span></div>
+        <div class="row" style="border-bottom:none;"><span>Last order</span><span>${fmtDate(c.lastOrderAt)}</span></div>
+      </div>
+    `).join('');
+  }
+
   let allSellers = [];
 
   async function loadSellers(){
@@ -830,6 +882,7 @@
 
   loadStats();
   loadSellers();
+  loadCustomers();
   loadAdminWallet();
   loadWithdrawals();
   loadVerifications();
