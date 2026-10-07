@@ -769,6 +769,33 @@ setInterval(() => {
   for (const [k, t] of recentViewers) if (t < cutoff) recentViewers.delete(k);
 }, 60 * 1000).unref();
 
+// Seller details for the admin when a customer reports, reviews or reminds about an order.
+// If the seller's account was deleted we still say which store it was (from the order itself).
+function describeSeller(email, orderItems, allSellers, allDisputes) {
+  const s = allSellers.find(x => x.email === email);
+  const snap = (orderItems || []).find(i => i.sellerEmail === email) || {};
+  if (!s) return { email, found: false, deletedAccount: true, storeName: snap.storeName || '' };
+  const v = s.verification || {};
+  return {
+    email: s.email,
+    found: true,
+    businessName: s.businessName || '',
+    storeName: s.storeName || s.businessName || '',
+    fullName: s.fullName || '',
+    phone: s.businessPhone || s.phone || '',
+    personalPhone: s.phone || '',
+    whatsappNumber: s.whatsappNumber || '',
+    state: s.state || '',
+    city: s.city || '',
+    bankName: v.bankName || '',
+    accountNumber: v.accountNumber || '',
+    accountName: v.accountName || '',
+    suspended: !!s.suspended,
+    warningCount: (s.warnings || []).length,
+    disputeCount: allDisputes.filter(d => (d.sellerEmails || []).includes(email)).length
+  };
+}
+
 const server = http.createServer((req, res) => {
 
   // Ignore any ?query=string when matching a page, so returning from
@@ -1290,6 +1317,46 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---------- ADMIN: REVIEWS & REMINDERS ----------
+  // Every customer review and every "remind the seller" tap, each with the seller's
+  // details so the admin can warn them straight away.
+  if (req.method === 'GET' && req.url === '/api/admin/seller-activity') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const orders = readJSON('orders.json');
+    const sellers = readJSON('sellers.json');
+    const disputes = readJSON('disputes.json');
+    const products = readJSON('products.json');
+
+    const reviews = readJSON('reviews.json').map(r => {
+      const order = orders.find(o => o.id === r.orderId);
+      const items = order ? order.items || [] : [];
+      const item = items.find(i => i.id === r.productId);
+      const product = products.find(p => p.id === r.productId);
+      const sellerEmail = (item && item.sellerEmail) || (product && product.sellerEmail) || null;
+      return {
+        orderId: r.orderId,
+        productName: (item && item.name) || (product && product.name) || 'A product',
+        rating: r.rating, text: r.text || '',
+        customerName: r.customerName || '', customerEmail: r.customerEmail || '',
+        date: r.date,
+        sellers: sellerEmail ? [describeSeller(sellerEmail, items, sellers, disputes)] : []
+      };
+    }).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 300);
+
+    const reminders = orders.filter(o => (o.reminders || []).length > 0).map(o => ({
+      orderId: o.id, status: o.status, total: o.total || 0,
+      customerName: o.fullName || '', customerEmail: o.customerEmail || '',
+      orderDate: o.date,
+      reminderCount: o.reminders.length,
+      lastReminderAt: o.reminders[o.reminders.length - 1],
+      sellers: [...new Set((o.items || []).map(i => i.sellerEmail))].map(e => describeSeller(e, o.items, sellers, disputes))
+    })).sort((a, b) => String(b.lastReminderAt).localeCompare(String(a.lastReminderAt))).slice(0, 300);
+
+    sendJSON(res, { ok: true, reviews, reminders });
+    return;
+  }
+
   // ---------- ADMIN: DISPUTES ----------
   if (req.method === 'GET' && req.url === '/api/admin/disputes') {
     const session = requireAuth(req, res, 'admin');
@@ -1304,24 +1371,8 @@ const server = http.createServer((req, res) => {
       // name, phone, email and bank details, plus how many disputes this
       // same seller has been named in (a pattern is more useful than a
       // single complaint when deciding whether to warn or suspend).
-      const sellersInfo = (d.sellerEmails || []).map(email => {
-        const s = sellers.find(x => x.email === email);
-        if (!s) return { email, found: false };
-        const disputeCount = disputes.filter(other => (other.sellerEmails || []).includes(email)).length;
-        return {
-          email: s.email,
-          found: true,
-          businessName: s.businessName,
-          fullName: s.fullName,
-          phone: s.businessPhone,
-          bankName: s.verification && s.verification.bankName,
-          accountNumber: s.verification && s.verification.accountNumber,
-          accountName: s.verification && s.verification.accountName,
-          suspended: !!s.suspended,
-          warningCount: (s.warnings || []).length,
-          disputeCount
-        };
-      });
+      const sellersInfo = (d.sellerEmails || []).map(email =>
+        describeSeller(email, order ? order.items : [], sellers, disputes));
       return { ...d, order, sellersInfo };
     });
 
@@ -1342,20 +1393,24 @@ const server = http.createServer((req, res) => {
       seller.warnings.push({ id: Date.now(), message, date: new Date().toISOString(), seen: false });
       writeJSON('sellers.json', sellers);
 
+      let emailOk = false;
       try {
         await sendEmail(
           email,
           'Warning from SellHub',
           `<p>Hello ${seller.fullName || ''},</p><p>${message}</p><p>Please take this seriously — repeated issues can lead to your account being suspended.</p>`
         );
+        emailOk = true;
       } catch (err) { console.log('Email error:', err.message); }
 
-      const sellerPhone = seller.whatsappNumber || seller.businessPhone;
+      let waState = 'no WhatsApp number on file';
+      const sellerPhone = seller.whatsappNumber || seller.businessPhone || seller.phone;
       if (sellerPhone) {
-        sendWhatsApp(sellerPhone, `SellHub warning: ${message}`).catch(err => console.log('WhatsApp error:', err.message));
+        const wa = await sendWhatsApp(sellerPhone, `SellHub warning: ${message}`);
+        waState = wa.ok ? 'sent' : 'not sent (' + (wa.reason === 'not_configured' ? 'WhatsApp is not set up' : wa.reason === 'bad_number' ? 'the number is not valid' : wa.reason) + ')';
       }
 
-      sendJSON(res, { ok: true, message: 'Warning sent to seller.' });
+      sendJSON(res, { ok: true, message: `Warning saved on the seller's account.\nEmail: ${emailOk ? 'sent' : 'not sent'}\nWhatsApp: ${waState}` });
     });
     return;
   }
