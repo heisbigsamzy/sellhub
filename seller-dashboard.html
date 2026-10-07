@@ -46,6 +46,33 @@
   }
 
   .free-banner{background:var(--mint-100); color:var(--green-900); text-align:center; padding:11px 16px; font-size:13px; font-weight:700; border-bottom:1px solid rgba(15,122,74,0.1);}
+  /* ---- Frosted-glass look (iOS style): translucent bars and panels over a soft colored backdrop ---- */
+  body{background:
+    radial-gradient(520px 420px at 6% 3%, rgba(63,193,127,0.32), transparent 70%),
+    radial-gradient(560px 480px at 98% 8%, rgba(90,175,255,0.24), transparent 70%),
+    radial-gradient(640px 520px at 72% 94%, rgba(20,154,92,0.22), transparent 70%),
+    radial-gradient(480px 420px at 2% 82%, rgba(255,210,120,0.20), transparent 70%),
+    linear-gradient(180deg,#EDF7F1 0%,#F6FBF8 100%);
+    background-attachment:fixed;}
+  header{background:rgba(255,255,255,0.56); -webkit-backdrop-filter:saturate(180%) blur(22px); backdrop-filter:saturate(180%) blur(22px); border-bottom:1px solid rgba(255,255,255,0.7); box-shadow:0 1px 0 rgba(11,61,40,0.06), 0 12px 32px -20px rgba(11,61,40,0.3);}
+  .free-banner{background:rgba(11,61,40,0.78); color:#fff; -webkit-backdrop-filter:saturate(160%) blur(16px); backdrop-filter:saturate(160%) blur(16px); border-bottom:1px solid rgba(255,255,255,0.14);}
+  .tabs{background:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.8); -webkit-backdrop-filter:saturate(180%) blur(18px); backdrop-filter:saturate(180%) blur(18px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 10px 26px -16px rgba(11,61,40,0.28);}
+  .stat-card, .profile-card, .withdraw-form, .cart-row, .txn-row{background:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.85); -webkit-backdrop-filter:saturate(170%) blur(14px); backdrop-filter:saturate(170%) blur(14px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 30px -18px rgba(11,61,40,0.28);}
+  .order-card, .notif-card{background:rgba(255,255,255,0.62); border-top-color:rgba(255,255,255,0.85); border-right-color:rgba(255,255,255,0.85); border-bottom-color:rgba(255,255,255,0.85); -webkit-backdrop-filter:saturate(170%) blur(14px); backdrop-filter:saturate(170%) blur(14px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 30px -18px rgba(11,61,40,0.28);}
+  /* Product grids can be long: translucent, but no live blur (keeps cheaper phones smooth). */
+  .p-card{background:rgba(255,255,255,0.7); border:1px solid rgba(255,255,255,0.9); box-shadow:inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 28px -18px rgba(11,61,40,0.3);}
+  .store-badge, .order-filter-chip{background:rgba(255,255,255,0.6); border-color:rgba(255,255,255,0.85);}
+  input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea{background-color:rgba(255,255,255,0.72);}
+  .modal-overlay{background:rgba(11,15,12,0.28); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);}
+  .modal{background:rgba(255,255,255,0.8); border:1px solid rgba(255,255,255,0.85); -webkit-backdrop-filter:saturate(180%) blur(28px); backdrop-filter:saturate(180%) blur(28px); box-shadow:0 30px 80px -24px rgba(11,15,12,0.45), inset 0 1px 0 rgba(255,255,255,0.9);}
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    header, .tabs, .stat-card, .profile-card, .withdraw-form, .cart-row, .txn-row, .order-card, .notif-card, .modal{background:rgba(255,255,255,0.96);}
+    .free-banner{background:#0B3D28;}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    header, .tabs, .stat-card, .profile-card, .withdraw-form, .cart-row, .txn-row, .order-card, .notif-card, .modal, .p-card{background:#fff; -webkit-backdrop-filter:none; backdrop-filter:none;}
+    .free-banner{background:#0B3D28; -webkit-backdrop-filter:none; backdrop-filter:none;}
+  }
   .warning-card{background:#FFF3E0; border:1px solid #F3D9A8; border-radius:14px; padding:14px 18px; font-size:13px; color:#8A5A00; margin:0 0 2px;}
   .reminder-card{background:#E8F0FE; border:1px solid #C7D9F9; border-radius:14px; padding:14px 18px; font-size:13px; color:#1A56DB; cursor:pointer; transition:box-shadow .2s;}
   .reminder-card:hover{box-shadow:0 10px 20px -12px rgba(26,86,219,0.35);}
