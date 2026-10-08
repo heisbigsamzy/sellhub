@@ -970,8 +970,8 @@
         <div class="row"><span>Email</span><span>${esc(o.customerEmail)}</span></div>
         <div class="row"><span>Deliver to</span><span style="max-width:60%;text-align:right;">${esc([o.address, o.city, o.state].filter(Boolean).join(', ') || 'n/a')}</span></div>
         <div class="row"><span>Items</span><span style="max-width:60%;text-align:right;">${o.items.map(i => esc(i.name) + ' (' + money(i.price) + ')').join('<br>')}</span></div>
-        <div class="row"><span>Seller</span><span>${esc(stores || 'n/a')}</span></div>
         <div class="row"><span>Total paid</span><span><b>${money(o.total)}</b> &nbsp;<small>(your fee ${money(o.serviceFee)})</small></span></div>
+        ${(o.sellers || []).map(s => sellerBox(s, 'About order #' + o.id + ': ')).join('')}
         ${o.reminders ? `<div class="row"><span>Reminders</span><span>${o.reminders} from the customer</span></div>` : ''}
         ${o.disputed ? '<div class="row"><span>Dispute</span><span style="color:#b91c1c;font-weight:800;">Reported — see Disputes tab</span></div>' : ''}
       </div>`;

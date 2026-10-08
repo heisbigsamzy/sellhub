@@ -1376,6 +1376,8 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
     const customers = readJSON('customers.json');
+    const allSellers = readJSON('sellers.json');
+    const allDisputes = readJSON('disputes.json');
     const orders = readJSON('orders.json').slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 500).map(o => {
       const c = customers.find(x => x.email === o.customerEmail);
       return {
@@ -1385,6 +1387,7 @@ const server = http.createServer((req, res) => {
         address: o.address || '', city: o.city || '', state: o.state || '',
         subtotal: o.subtotal != null ? o.subtotal : o.total, serviceFee: o.serviceFee || 0, total: o.total || 0,
         reminders: (o.reminders || []).length, disputed: !!o.disputed,
+        sellers: [...new Set((o.items || []).map(i => i.sellerEmail).filter(Boolean))].map(e => describeSeller(e, o.items, allSellers, allDisputes)),
         items: (o.items || []).map(i => ({ name: i.name, price: i.effectivePrice || i.price, storeName: i.storeName || '', sellerEmail: i.sellerEmail }))
       };
     });
@@ -1939,7 +1942,12 @@ const server = http.createServer((req, res) => {
       // Tell the admin straight away (WhatsApp + email) that someone just bought something.
       try {
         const names = orderItems.map(i => i.name).join(', ');
-        const stores = [...new Set(orderItems.map(i => i.storeName).filter(Boolean))].join(', ');
+        const sellerList = readJSON('sellers.json');
+        const stores = [...new Set(orderItems.map(i => i.sellerEmail).filter(Boolean))].map(e => {
+          const sl = sellerList.find(x => x.email === e);
+          if (!sl) return e;
+          return `${sl.storeName || sl.businessName} — ${sl.fullName || ''}, ${sl.whatsappNumber || sl.businessPhone || sl.phone || 'no phone'}${sl.state ? ', ' + [sl.city, sl.state].filter(Boolean).join(', ') : ''}`;
+        }).join('; ');
         const where = [city, state].filter(Boolean).join(', ');
         notifyAdmin(`🛒 SellHub: NEW ORDER #${order.id}\nCustomer: ${fullName || customer.fullName} (${phone || customer.phone || 'no phone'})\nItems: ${names}\nSeller: ${stores || 'n/a'}\nTotal: ₦${total.toLocaleString()} (your fee ₦${serviceFee.toLocaleString()})${where ? '\nDeliver to: ' + where : ''}`);
       } catch (e) { console.log('Admin order alert error:', e.message); }
