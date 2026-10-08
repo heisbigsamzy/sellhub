@@ -180,6 +180,7 @@
     <div class="nav-item active" data-tab="overview" onclick="showTab('overview')"><span class="nav-icon">&#9707;</span>Overview</div>
     <div class="nav-item" data-tab="sellers" onclick="showTab('sellers')"><span class="nav-icon">&#128100;</span>Sellers</div>
     <div class="nav-item" data-tab="customers" onclick="showTab('customers')"><span class="nav-icon">&#128101;</span>Customers</div>
+    <div class="nav-item" data-tab="orders" onclick="showTab('orders')"><span class="nav-icon">&#128722;</span>Orders<span class="nav-badge" id="navBadgeOrders" style="display:none;"></span></div>
     <div class="nav-item" data-tab="wallet" onclick="showTab('wallet')"><span class="nav-icon">&#8358;</span>Platform Wallet</div>
     <div class="nav-item" data-tab="withdrawals" onclick="showTab('withdrawals')"><span class="nav-icon">&#8615;</span>Seller Withdrawals<span class="nav-badge" id="navBadgeWithdrawals" style="display:none;"></span></div>
     <div class="nav-item" data-tab="verifications" onclick="showTab('verifications')"><span class="nav-icon">&#10003;</span>Verifications<span class="nav-badge" id="navBadgeVerifications" style="display:none;"></span></div>
@@ -274,6 +275,19 @@
         </div>
         <div id="verificationsList"></div>
         <div id="decidedVerificationsList" style="display:none;"></div>
+      </div>
+
+      <div class="panel" id="panel-orders">
+        <h1 class="page-title">Orders <span id="ordersLive" style="font-size:12px;font-weight:700;color:#0b6b3a;margin-left:8px;">● live</span></h1>
+        <div id="ordersStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          <input id="ordersSearch" placeholder="Search order, customer, product or store..." oninput="renderOrders()" style="flex:1;min-width:200px;padding:10px 14px;border:1px solid #d6ddd9;border-radius:10px;font-size:14px;">
+          <select id="ordersFilter" onchange="renderOrders()" style="padding:10px 12px;border:1px solid #d6ddd9;border-radius:10px;font-size:14px;">
+            <option value="">All statuses</option><option>Order Received</option><option>Processing</option><option>Shipped</option><option>Out for Delivery</option><option>Delivered</option><option>Cancelled</option>
+          </select>
+          <button class="btn approve" onclick="toggleOrderSound()" id="soundBtn">🔔 Sound on</button>
+        </div>
+        <div id="ordersList"></div>
       </div>
 
       <div class="panel" id="panel-activity">
@@ -383,6 +397,7 @@
     window.scrollTo(0, 0);
     if (name === 'customers') loadCustomers().catch(() => {});
     if (name === 'activity') loadActivity().catch(() => {});
+    if (name === 'orders') { loadOrders().catch(() => {}); markOrdersSeen(); }
   }
 
   function openSidebar(){
@@ -896,6 +911,74 @@
         ${v.sellers.map(s => sellerBox(s, 'About a customer review on "' + v.productName + '" (' + v.rating + '/5): ')).join('')}
       </div>`).join('') : `<div class="empty"><h3>No reviews yet</h3></div>`;
   }
+
+  // ---- Orders monitor: polls every 8 seconds, flags new orders, beeps ----
+  let allOrders = [], ordersFirst = true, orderSound = true;
+  const seenKey = 'sellhub_admin_orders_seen';
+  function getSeen(){ try { return Number(localStorage.getItem(seenKey) || 0); } catch (e) { return 0; } }
+  function setSeen(n){ try { localStorage.setItem(seenKey, String(n)); } catch (e) {} }
+  function beep(){
+    if (!orderSound) return;
+    try {
+      const c = new (window.AudioContext || window.webkitAudioContext)();
+      [660, 880].forEach((f, i) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; o.connect(g); g.connect(c.destination);
+        g.gain.setValueAtTime(0.0001, c.currentTime + i * 0.18); g.gain.exponentialRampToValueAtTime(0.25, c.currentTime + i * 0.18 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + i * 0.18 + 0.16);
+        o.start(c.currentTime + i * 0.18); o.stop(c.currentTime + i * 0.18 + 0.17); });
+    } catch (e) {}
+  }
+  function toggleOrderSound(){ orderSound = !orderSound; document.getElementById('soundBtn').textContent = orderSound ? '🔔 Sound on' : '🔕 Sound off'; }
+  function onOrdersTab(){ const p = document.getElementById('panel-orders'); return p && p.classList.contains('active'); }
+  function markOrdersSeen(){ if (allOrders.length) setSeen(Math.max(...allOrders.map(o => Number(o.id) || 0))); updateOrdersBadge(); renderOrders(); }
+  function updateOrdersBadge(){
+    const n = allOrders.filter(o => (Number(o.id) || 0) > getSeen()).length;
+    const b = document.getElementById('navBadgeOrders');
+    if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; }
+  }
+  async function loadOrders(){
+    const res = await authedFetch('/api/admin/orders');
+    const r = await res.json();
+    if (!r.ok) return;
+    const before = new Set(allOrders.map(o => o.id));
+    const fresh = r.orders.filter(o => !before.has(o.id));
+    allOrders = r.orders;
+    if (ordersFirst && getSeen() === 0 && allOrders.length) setSeen(Math.max(...allOrders.map(o => Number(o.id) || 0)));
+    if (!ordersFirst && fresh.length) beep();
+    ordersFirst = false;
+    const s = r.summary;
+    document.getElementById('ordersStats').innerHTML = [
+      ['Orders today', s.todayCount], ['Sales today', money(s.todayValue)], ['Your fees today', money(s.todayFees)], ['Not delivered yet', s.pending], ['All orders', s.totalCount]
+    ].map(([l, v]) => `<div class="card" style="padding:14px;margin:0;"><div style="font-size:12px;color:#5a6b61;font-weight:700;">${l}</div><div style="font-size:24px;font-weight:900;color:#0b4d2c;">${v}</div></div>`).join('');
+    if (onOrdersTab()) markOrdersSeen(); else { updateOrdersBadge(); renderOrders(); }
+  }
+  function renderOrders(){
+    const q = (document.getElementById('ordersSearch').value || '').toLowerCase();
+    const f = document.getElementById('ordersFilter').value;
+    const seen = getSeen();
+    const list = allOrders.filter(o => (!f || o.status === f) && (!q || JSON.stringify(o).toLowerCase().includes(q)));
+    const box = document.getElementById('ordersList');
+    if (!list.length) { box.innerHTML = '<div class="empty"><h3>No orders yet</h3><p>New orders appear here the moment a customer pays.</p></div>'; return; }
+    const stColor = s => s === 'Delivered' ? 'approved' : s === 'Cancelled' ? 'rejected' : 'pending';
+    box.innerHTML = list.map(o => {
+      const isNew = (Number(o.id) || 0) > seen && !onOrdersTab();
+      const stores = [...new Set(o.items.map(i => i.storeName).filter(Boolean))].join(', ');
+      return `<div class="card" ${isNew ? 'style="border:2px solid #19c37d;"' : ''}>
+        <div class="card-top"><div>
+          <div class="card-title">Order #${esc(o.id)} ${isNew ? '<span class="badge approved">NEW</span>' : ''}</div>
+          <div class="card-sub">${new Date(o.date).toLocaleString()}</div></div>
+          <span class="badge ${stColor(o.status)}">${esc(o.status)}</span></div>
+        <div class="row"><span>Customer</span><span>${esc(o.customerName)} · ${esc(o.customerPhone || 'no phone')}</span></div>
+        <div class="row"><span>Email</span><span>${esc(o.customerEmail)}</span></div>
+        <div class="row"><span>Deliver to</span><span style="max-width:60%;text-align:right;">${esc([o.address, o.city, o.state].filter(Boolean).join(', ') || 'n/a')}</span></div>
+        <div class="row"><span>Items</span><span style="max-width:60%;text-align:right;">${o.items.map(i => esc(i.name) + ' (' + money(i.price) + ')').join('<br>')}</span></div>
+        <div class="row"><span>Seller</span><span>${esc(stores || 'n/a')}</span></div>
+        <div class="row"><span>Total paid</span><span><b>${money(o.total)}</b> &nbsp;<small>(your fee ${money(o.serviceFee)})</small></span></div>
+        ${o.reminders ? `<div class="row"><span>Reminders</span><span>${o.reminders} from the customer</span></div>` : ''}
+        ${o.disputed ? '<div class="row"><span>Dispute</span><span style="color:#b91c1c;font-weight:800;">Reported — see Disputes tab</span></div>' : ''}
+      </div>`;
+    }).join('');
+  }
+  loadOrders().catch(() => {});
+  setInterval(() => { loadOrders().catch(() => {}); }, 8000);
 
   async function warnSeller(email, prefix){
     const message = prompt('Warning message to send to this seller (they get it by WhatsApp and email):', prefix || '');

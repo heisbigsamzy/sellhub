@@ -1371,6 +1371,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---------- ADMIN: ORDERS (live monitor) ----------
+  if (req.method === 'GET' && req.url === '/api/admin/orders') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const customers = readJSON('customers.json');
+    const orders = readJSON('orders.json').slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 500).map(o => {
+      const c = customers.find(x => x.email === o.customerEmail);
+      return {
+        id: o.id, date: o.date, status: o.status || 'Order Received',
+        customerName: o.fullName || (c && c.fullName) || '', customerEmail: o.customerEmail,
+        customerPhone: o.phone || (c && c.phone) || '',
+        address: o.address || '', city: o.city || '', state: o.state || '',
+        subtotal: o.subtotal != null ? o.subtotal : o.total, serviceFee: o.serviceFee || 0, total: o.total || 0,
+        reminders: (o.reminders || []).length, disputed: !!o.disputed,
+        items: (o.items || []).map(i => ({ name: i.name, price: i.effectivePrice || i.price, storeName: i.storeName || '', sellerEmail: i.sellerEmail }))
+      };
+    });
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const live = orders.filter(o => o.status !== 'Cancelled');
+    const today = live.filter(o => new Date(o.date) >= startOfDay);
+    sendJSON(res, { ok: true, orders, summary: {
+      todayCount: today.length,
+      todayValue: today.reduce((a, o) => a + o.total, 0),
+      todayFees: today.reduce((a, o) => a + o.serviceFee, 0),
+      totalCount: live.length,
+      pending: live.filter(o => o.status !== 'Delivered').length
+    } });
+    return;
+  }
+
   // ---------- ADMIN: REVIEWS & REMINDERS ----------
   // Every customer review and every "remind the seller" tap, each with the seller's
   // details so the admin can warn them straight away.
@@ -1905,6 +1935,14 @@ const server = http.createServer((req, res) => {
       creditSellersForOrder(order);
       notifyOrderStatus(order, 'Order Received');
       notifySellerNewOrder(order);
+
+      // Tell the admin straight away (WhatsApp + email) that someone just bought something.
+      try {
+        const names = orderItems.map(i => i.name).join(', ');
+        const stores = [...new Set(orderItems.map(i => i.storeName).filter(Boolean))].join(', ');
+        const where = [city, state].filter(Boolean).join(', ');
+        notifyAdmin(`🛒 SellHub: NEW ORDER #${order.id}\nCustomer: ${fullName || customer.fullName} (${phone || customer.phone || 'no phone'})\nItems: ${names}\nSeller: ${stores || 'n/a'}\nTotal: ₦${total.toLocaleString()} (your fee ₦${serviceFee.toLocaleString()})${where ? '\nDeliver to: ' + where : ''}`);
+      } catch (e) { console.log('Admin order alert error:', e.message); }
 
       sendJSON(res, { ok: true, message: '✅ Order placed successfully!', order });
     }).catch(err => { console.log('ERROR:', err.message); sendJSON(res, { ok: false, message: 'Checkout failed.' }); });
