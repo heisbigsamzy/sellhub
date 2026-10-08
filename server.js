@@ -727,11 +727,41 @@ function writeJSON(file, data) {
   // Upstash database is connected; never blocks or throws into the caller.
   backupFile(file, text);
 }
-function serveFile(res, fileName) {
+function serveFile(res, fileName, extraHeaders) {
   fs.readFile(fileName, (err, content) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.writeHead(200, Object.assign({ 'Content-Type': 'text/html' }, extraHeaders || {}));
     res.end(content);
+  });
+}
+
+// ---------- SEARCH ENGINES (SEO) ----------
+const SITE_URL = (process.env.PUBLIC_URL || 'https://sellhubmarket.xyz').replace(/\/+$/, '');
+// Pages that should never show up in Google (private or admin screens).
+const NOINDEX_PAGES = new Set(['/dashboard', '/seller-dashboard', '/seller-onboarding', '/verification-center',
+  '/admin-login', '/admin-dashboard', '/forgot-password']);
+const escHtml = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SITEMAP_PAGES = [['/', 'weekly', '1.0'], ['/about', 'monthly', '0.7'], ['/help', 'monthly', '0.6'], ['/contact', 'monthly', '0.5'],
+  ['/signup', 'monthly', '0.8'], ['/seller-signup', 'monthly', '0.8'], ['/login', 'monthly', '0.4'], ['/terms', 'yearly', '0.3'], ['/privacy', 'yearly', '0.3']];
+
+// A storefront page is one shared HTML file, so before sending it we put the
+// store's own name and description in the title/meta tags — that is what Google reads first.
+function serveStorefront(res, slug) {
+  fs.readFile('storefront.html', 'utf-8', (err, html) => {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    try {
+      const seller = readJSON('sellers.json').find(x => x.storeSlug === slug && !x.suspended);
+      if (seller) {
+        const name = escHtml(seller.storeName || seller.businessName || 'Store');
+        const place = [seller.city, seller.state].filter(Boolean).join(', ');
+        const desc = escHtml(`Shop ${seller.storeName || seller.businessName} on SellHub${place ? ' — based in ' + place : ''}. Verified Nigerian seller, secure wallet payments and order tracking.`);
+        const url = `${SITE_URL}/store/${encodeURIComponent(slug)}`;
+        const head = `<title>${name} — Shop on SellHub</title>\n<meta name="description" content="${desc}">\n<link rel="canonical" href="${url}">\n<meta property="og:title" content="${name} — Shop on SellHub">\n<meta property="og:description" content="${desc}">\n<meta property="og:url" content="${url}">\n<meta property="og:type" content="website">\n<meta property="og:image" content="${SITE_URL}/logo.jpg">`;
+        html = /<title>[\s\S]*?<\/title>/.test(html) ? html.replace(/<title>[\s\S]*?<\/title>/, () => head) : html.replace('</head>', () => head + '\n</head>');
+      }
+    } catch (e) { /* fall back to the plain page */ }
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
   });
 }
 function sendJSON(res, data, status) {
@@ -823,11 +853,35 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (req.method === 'GET' && pages[pagePath]) { serveFile(res, pages[pagePath]); return; }
+  if (req.method === 'GET' && pagePath === '/robots.txt') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin-login\nDisallow: /admin-dashboard\nDisallow: /dashboard\nDisallow: /seller-dashboard\nDisallow: /seller-onboarding\nDisallow: /verification-center\nDisallow: /forgot-password\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+    return;
+  }
+  if (req.method === 'GET' && pagePath === '/sitemap.xml') {
+    let urls = SITEMAP_PAGES.map(([p, f, pr]) => `<url><loc>${SITE_URL}${p === '/' ? '/' : p}</loc><changefreq>${f}</changefreq><priority>${pr}</priority></url>`);
+    try {
+      readJSON('sellers.json').filter(x => x.storeSlug && !x.suspended).forEach(x => {
+        urls.push(`<url><loc>${SITE_URL}/store/${encodeURIComponent(x.storeSlug)}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`);
+      });
+    } catch (e) { /* pages only */ }
+    res.writeHead(200, { 'Content-Type': 'application/xml' });
+    res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`);
+    return;
+  }
+  if (req.method === 'GET' && pages[pagePath]) {
+    serveFile(res, pages[pagePath], NOINDEX_PAGES.has(pagePath) ? { 'X-Robots-Tag': 'noindex, nofollow' } : null);
+    return;
+  }
 
   // Every storefront shares one page (storefront.html); the page itself
   // reads the slug from the URL and fetches that seller's data.
-  if (req.method === 'GET' && req.url.startsWith('/store/')) { serveFile(res, 'storefront.html'); return; }
+  if (req.method === 'GET' && req.url.startsWith('/store/')) {
+    let slug = '';
+    try { slug = decodeURIComponent(pagePath.slice(7).replace(/\/+$/, '')); } catch (e) {}
+    serveStorefront(res, slug);
+    return;
+  }
 
   // ---------- PUBLIC STOREFRONT ----------
   if (req.method === 'GET' && req.url.startsWith('/api/store-info')) {
