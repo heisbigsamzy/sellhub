@@ -62,9 +62,10 @@
   .store-badge:hover{border-color:rgba(15,122,74,0.35); color:var(--green-900);}
   .store-badge.active{background:var(--green-900); border-color:var(--green-900); color:#fff;}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:18px; perspective:1000px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:18px;}
   .p-card{background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:16px; cursor:pointer; position:relative; overflow:hidden; transform-style:preserve-3d; transition:transform .45s cubic-bezier(.2,.8,.2,1), box-shadow .45s, border-color .3s; box-shadow:var(--shadow-resting);}
-  .p-card:hover{transform:perspective(800px) rotateX(5deg) rotateY(-5deg) translateY(-8px) scale(1.02); box-shadow:var(--shadow-hover); border-color:rgba(15,122,74,0.22);}
+  @media (hover:hover) and (pointer:fine){.p-card:hover{transform:perspective(800px) rotateX(5deg) rotateY(-5deg) translateY(-8px) scale(1.02); box-shadow:var(--shadow-hover); border-color:rgba(15,122,74,0.22);}}
+  @media (hover:none){.p-card:hover,.p-card:active{transform:none}}
   .p-card::before{content:""; position:absolute; top:-60%; left:-70%; width:45%; height:220%; background:linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent); transform:rotate(20deg); transition:left .7s ease; pointer-events:none;}
   .p-card:hover::before{left:130%;}
   .p-thumb{aspect-ratio:4/5; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
