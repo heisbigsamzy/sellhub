@@ -120,6 +120,11 @@
   .cart-row:hover{box-shadow:var(--shadow-hover); transform:translateY(-2px);}
   .cart-row .name{font-weight:700; font-size:14px;}
   .cart-row .store{font-size:12px; color:var(--gray-600); margin-top:2px;}
+  .qty-stepper{display:inline-flex; align-items:center; gap:2px; background:var(--mint-100); border-radius:99px; padding:3px;}
+  .qty-stepper button{width:34px; height:34px; border:none; border-radius:50%; background:#fff; color:var(--green-900); font-size:20px; font-weight:800; line-height:1; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .qty-stepper button:disabled{opacity:.35; cursor:not-allowed;}
+  .qty-stepper span{min-width:34px; text-align:center; font-weight:800; font-size:15px; font-variant-numeric:tabular-nums;}
+  .qty-pick{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:14px 0 4px; font-weight:700; font-size:14px;}
   .cart-row .price{font-family:'Manrope',sans-serif; font-weight:800; color:var(--green-700);}
   .remove-btn{background:none; border:none; color:#B4232C; font-size:12.5px; font-weight:700; cursor:pointer; margin-left:14px; transition:opacity .2s;}
   .remove-btn:hover{opacity:0.7;}
@@ -421,7 +426,16 @@
   const SAVED_KEY = 'sellhub_saved_' + (customer ? customer.email : 'guest');
 
   let products = [];
-  let cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+  // Cart is { productId: quantity }. Older carts were a plain list of ids, so convert those.
+  let cart = (() => {
+    let raw; try { raw = JSON.parse(localStorage.getItem(CART_KEY) || '{}'); } catch (e) { raw = {}; }
+    if (Array.isArray(raw)) { const m = {}; raw.forEach(id => { m[id] = (m[id] || 0) + 1; }); return m; }
+    return (raw && typeof raw === 'object') ? raw : {};
+  })();
+  const cartIdList = () => Object.keys(cart).map(Number);
+  const saveCart = () => localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  // Most the shopper may buy = what the seller has in stock (never above 99).
+  const maxQty = p => Math.min(99, typeof p.stock === 'number' ? p.stock : 99);
   let saved = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
   let serviceFeePercent = 1.99; // refreshed from the server below; server always recalculates the real charge
 
@@ -649,7 +663,10 @@
       ${productSpecs(p)}
       ${p.status === 'Out of Stock'
         ? `<button class="modal-btn" disabled style="opacity:0.5; cursor:not-allowed;">Out of Stock</button>`
-        : `<button class="modal-btn" onclick="addToCart(${p.id}); closeModal('viewModal');">Add to Cart</button>`}
+        : `<div class="qty-pick"><span>Quantity</span>
+             <div class="qty-stepper"><button type="button" onclick="pickQty(${p.id}, -1)" aria-label="Decrease quantity">−</button><span id="pickQty">1</span><button type="button" id="pickPlus" onclick="pickQty(${p.id}, 1)" ${maxQty(p) <= 1 ? 'disabled' : ''} aria-label="Increase quantity">+</button></div>
+             <small id="pickNote" style="color:#B26A00; font-weight:600;">${typeof p.stock === 'number' && p.stock <= 10 ? 'Only ' + p.stock + ' in stock' : ''}</small></div>
+           <button class="modal-btn" onclick="addToCart(${p.id}, Number(document.getElementById('pickQty').textContent)); closeModal('viewModal');">Add to Cart</button>`}
       <div>
         ${reviews.length === 0 ? '<p style="color:var(--gray-600); font-size:13px; margin-top:16px;">No reviews yet — be the first after your purchase is delivered.</p>' :
           reviews.map(r => `
@@ -688,8 +705,12 @@
   }
 
   function renderCart(){
-    const cartProducts = products.filter(p => cart.includes(p.id));
-    document.getElementById('cartCount').textContent = cart.length > 0 ? `(${cart.length})` : '';
+    // Keep quantities valid if the seller's stock changed since they were added.
+    if (products.length) cartIdList().forEach(id => { const p = products.find(x => x.id === id); if (!p || p.status === 'Out of Stock' || maxQty(p) < 1) delete cart[id]; else if (cart[id] > maxQty(p)) cart[id] = maxQty(p); });
+    saveCart();
+    const cartProducts = products.filter(p => cart[p.id]);
+    const unitCount = cartProducts.reduce((n, p) => n + cart[p.id], 0);
+    document.getElementById('cartCount').textContent = unitCount > 0 ? `(${unitCount})` : '';
     const list = document.getElementById('cartList');
 
     if (cartProducts.length === 0) {
@@ -700,12 +721,19 @@
     let total = 0;
     let rows = cartProducts.map((p) => {
       const effectivePrice = p.discountPrice || p.price;
-      total += effectivePrice;
+      const q = cart[p.id], mx = maxQty(p);
+      total += effectivePrice * q;
       return `
-        <div class="cart-row">
-          <div><div class="name">${p.name}</div><div class="store">${p.storeName}</div></div>
+        <div class="cart-row" style="flex-wrap:wrap; gap:10px;">
+          <div style="flex:1; min-width:140px;"><div class="name">${p.name}</div><div class="store">${p.storeName}</div>
+            <div class="store" style="color:${mx - q <= 2 ? '#B26A00' : 'var(--gray-600)'}; font-weight:600;">${mx - q <= 0 ? 'That is all the seller has in stock' : (typeof p.stock === 'number' && p.stock <= 10 ? 'Only ' + p.stock + ' in stock' : money(effectivePrice) + ' each')}</div></div>
+          <div class="qty-stepper" aria-label="Quantity">
+            <button type="button" onclick="changeQty(${p.id}, -1)" aria-label="Decrease quantity">−</button>
+            <span>${q}</span>
+            <button type="button" onclick="changeQty(${p.id}, 1)" ${q >= mx ? 'disabled' : ''} aria-label="Increase quantity">+</button>
+          </div>
           <div style="display:flex; align-items:center;">
-            <div class="price">${money(effectivePrice)}</div>
+            <div class="price">${money(effectivePrice * q)}</div>
             <button class="remove-btn" onclick="removeFromCart(${p.id})">Remove</button>
           </div>
         </div>
@@ -740,8 +768,8 @@
       document.getElementById('co_phone').value = result.savedAddress.phone || '';
     }
 
-    const cartProducts = products.filter(p => cart.includes(p.id));
-    const subtotal = cartProducts.reduce((s, p) => s + p.price, 0);
+    const cartProducts = products.filter(p => cart[p.id]);
+    const subtotal = cartProducts.reduce((s, p) => s + (p.discountPrice || p.price) * cart[p.id], 0);
     const fee = Math.round(subtotal * (serviceFeePercent / 100));
     document.getElementById('co_feeBreakdown').innerHTML = `
       <div style="display:flex; justify-content:space-between;"><span>Order amount</span><span>${money(subtotal)}</span></div>
@@ -763,30 +791,58 @@
       city: document.getElementById('co_city').value,
       instructions: document.getElementById('co_instructions').value,
       saveAddress: document.getElementById('co_saveAddress').checked,
-      cartIds: cart
+      cartItems: cartIdList().map(id => ({ id, quantity: cart[id] }))
     };
     const res = await authedFetch('/api/checkout', { method: 'POST', body: JSON.stringify(body) });
     const result = await res.json();
     document.getElementById('checkoutMsg').textContent = result.message;
     document.getElementById('checkoutMsg').style.color = result.ok ? 'var(--green-700)' : '#B4232C';
     if (result.ok) {
-      cart = [];
-      localStorage.setItem(CART_KEY, JSON.stringify(cart));
+      cart = {};
+      saveCart();
       renderCart();
       setTimeout(() => { closeModal('checkoutModal'); showTab('orders'); }, 900);
     }
   }
 
-  function addToCart(id){
-    cart.push(id);
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  function addToCart(id, qty){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const mx = maxQty(p), have = cart[id] || 0, add = Math.max(1, Math.floor(Number(qty) || 1));
+    if (mx < 1) { alert('Sorry, this product is out of stock.'); return; }
+    if (have + add > mx) {
+      cart[id] = mx; saveCart(); renderCart();
+      alert(have >= mx ? `You already have all ${mx} available in your cart.` : `Only ${mx} in stock — we added ${mx - have}.`);
+      return;
+    }
+    cart[id] = have + add;
+    saveCart();
+    renderCart();
+  }
+  // + and − buttons in the cart (and the product page picker).
+  function changeQty(id, delta){
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const next = (cart[id] || 0) + delta;
+    if (next < 1) { removeFromCart(id); return; }
+    if (next > maxQty(p)) { alert(`Only ${maxQty(p)} in stock.`); return; }
+    cart[id] = next;
+    saveCart();
     renderCart();
   }
   function removeFromCart(id){
-    const index = cart.indexOf(id);
-    if (index > -1) cart.splice(index, 1);
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    delete cart[id];
+    saveCart();
     renderCart();
+  }
+  // Quantity picker on the product page (before adding to the cart).
+  function pickQty(id, delta){
+    const p = products.find(x => x.id === id);
+    const el = document.getElementById('pickQty'); if (!p || !el) return;
+    const next = Math.min(maxQty(p), Math.max(1, Number(el.textContent) + delta));
+    el.textContent = next;
+    const plus = document.getElementById('pickPlus'); if (plus) plus.disabled = next >= maxQty(p);
+    const note = document.getElementById('pickNote'); if (note) note.textContent = next >= maxQty(p) ? 'That is all the seller has in stock' : '';
   }
   function toggleSave(id){
     if (saved.includes(id)) saved = saved.filter(x => x !== id);
@@ -944,7 +1000,7 @@
           <span class="status-badge status-${statusSlug(o.status)}">${o.status}</span>${o.disputed ? '<span class="disputed-flag">Reported</span>' : ''}
         </div>
         ${renderTracker(o.status, o.cancelReason)}
-        ${o.items.map(i => `<div class="order-item-row"><span>${i.name} — ${i.storeName}</span><span>${money(i.effectivePrice || i.price)}</span></div>`).join('')}
+        ${o.items.map(i => `<div class="order-item-row"><span>${i.name}${(i.quantity || 1) > 1 ? ' ×' + i.quantity : ''} — ${i.storeName}</span><span>${money((i.effectivePrice || i.price) * (i.quantity || 1))}</span></div>`).join('')}
         <div class="order-total"><span>Total</span><span>${money(o.total)}</span></div>
         ${renderTrackingBox(o)}
         <div class="order-actions">

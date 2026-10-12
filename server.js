@@ -543,13 +543,19 @@ const ORDER_STATUS_COPY = {
 // Fires both the in-app notification and the email for a status change.
 // Called from exactly one place per status transition, so seller dashboard,
 // customer dashboard, notifications and email all reflect the same event.
+// One order line can hold several units of the same product (item.quantity).
+// effectivePrice is always the price of ONE unit, so every total multiplies by quantity.
+const itemQty = i => Math.max(1, Math.floor(Number(i && i.quantity) || 1));
+const lineTotal = i => (i.effectivePrice || i.price) * itemQty(i);
+const itemLabel = i => itemQty(i) > 1 ? `${i.name} ×${itemQty(i)}` : i.name;
+
 function notifyOrderStatus(order, status) {
   const copy = ORDER_STATUS_COPY[status];
   if (!copy) return;
 
   createNotification(order.customerEmail, order.id, status, copy.heading, copy.line(order));
 
-  const itemsList = order.items.map(i => i.name).join(', ');
+  const itemsList = order.items.map(itemLabel).join(', ');
   const toEmail = order.deliveryEmail || order.customerEmail;
   const html = `
     <p>Hello ${order.fullName || ''},</p>
@@ -573,7 +579,7 @@ function creditSellersForOrder(order) {
   const sellers = readJSON('sellers.json');
   const shareBySeller = {};
   order.items.forEach(item => {
-    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + (item.effectivePrice || item.price);
+    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + lineTotal(item);
   });
 
   Object.entries(shareBySeller).forEach(([sellerEmail, amount]) => {
@@ -602,8 +608,8 @@ function notifySellerNewOrder(order) {
   Object.entries(itemsBySeller).forEach(([sellerEmail, items]) => {
     const seller = sellers.find(s => s.email === sellerEmail);
     if (!seller) return;
-    const payout = items.reduce((sum, i) => sum + (i.effectivePrice || i.price), 0);
-    const itemsList = items.map(i => i.name).join(', ');
+    const payout = items.reduce((sum, i) => sum + lineTotal(i), 0);
+    const itemsList = items.map(itemLabel).join(', ');
 
     createSellerNotification(
       sellerEmail, order.id, 'New Order',
@@ -634,7 +640,7 @@ function reverseSellerCreditsAndRefundCustomer(order) {
   const sellers = readJSON('sellers.json');
   const shareBySeller = {};
   order.items.forEach(item => {
-    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + (item.effectivePrice || item.price);
+    shareBySeller[item.sellerEmail] = (shareBySeller[item.sellerEmail] || 0) + lineTotal(item);
   });
 
   Object.entries(shareBySeller).forEach(([sellerEmail, amount]) => {
@@ -1388,7 +1394,7 @@ const server = http.createServer((req, res) => {
         subtotal: o.subtotal != null ? o.subtotal : o.total, serviceFee: o.serviceFee || 0, total: o.total || 0,
         reminders: (o.reminders || []).length, disputed: !!o.disputed,
         sellers: [...new Set((o.items || []).map(i => i.sellerEmail).filter(Boolean))].map(e => describeSeller(e, o.items, allSellers, allDisputes)),
-        items: (o.items || []).map(i => ({ name: i.name, price: i.effectivePrice || i.price, storeName: i.storeName || '', sellerEmail: i.sellerEmail }))
+        items: (o.items || []).map(i => ({ name: i.name, quantity: itemQty(i), price: i.effectivePrice || i.price, storeName: i.storeName || '', sellerEmail: i.sellerEmail }))
       };
     });
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
@@ -1877,7 +1883,17 @@ const server = http.createServer((req, res) => {
     const session = requireAuth(req, res, 'customer');
     if (!session) return;
     readBody(req).then(async (form) => {
-      const { fullName, phone, deliveryEmail, address, state, city, instructions, cartIds, saveAddress } = form;
+      const { fullName, phone, deliveryEmail, address, state, city, instructions, saveAddress } = form;
+      // New carts send [{id, quantity}]; older ones sent a plain list of ids (1 each).
+      let wanted = Array.isArray(form.cartItems) ? form.cartItems.map(x => ({ id: Number(x && x.id), quantity: Number(x && x.quantity) }))
+        : (Array.isArray(form.cartIds) ? [...new Set(form.cartIds.map(Number))].map(id => ({ id, quantity: 1 })) : []);
+      const qtyById = {};
+      for (const w of wanted) {
+        if (!Number.isFinite(w.id)) continue;
+        if (!Number.isInteger(w.quantity) || w.quantity < 1) return sendJSON(res, { ok: false, message: 'Quantity must be a whole number of at least 1.' });
+        qtyById[w.id] = (qtyById[w.id] || 0) + w.quantity;
+      }
+      const cartIds = Object.keys(qtyById).map(Number);
       const customers = readJSON('customers.json');
       const products = readJSON('products.json');
       const customer = customers.find(c => c.email === session.email);
@@ -1892,11 +1908,19 @@ const server = http.createServer((req, res) => {
       // Snapshot each item's actual charged price (the discount price when one
       // is set) so every later step — wallet crediting, order display —
       // reads from the same number instead of recomputing it differently.
-      const orderItems = items.map(p => ({ ...p, effectivePrice: p.discountPrice || p.price }));
+      // Never let a customer buy more units than the seller has in stock.
+      for (const p of items) {
+        const q = qtyById[p.id];
+        if (typeof p.stock === 'number' && q > p.stock) {
+          return sendJSON(res, { ok: false, message: p.stock > 0 ? `Only ${p.stock} of "${p.name}" left in stock. Please lower the quantity.` : `"${p.name}" is out of stock.` });
+        }
+        if (q > 99) return sendJSON(res, { ok: false, message: 'You can buy up to 99 of one product per order.' });
+      }
+      const orderItems = items.map(p => ({ ...p, quantity: qtyById[p.id], effectivePrice: p.discountPrice || p.price }));
 
       // Fees are computed server-side, never trusted from the client.
       const { customerServiceFeePercent } = getSettings();
-      const subtotal = orderItems.reduce((sum, p) => sum + p.effectivePrice, 0);
+      const subtotal = orderItems.reduce((sum, p) => sum + p.effectivePrice * p.quantity, 0);
       const serviceFee = Math.round(subtotal * (customerServiceFeePercent / 100));
       const total = subtotal + serviceFee;
 
@@ -1912,12 +1936,12 @@ const server = http.createServer((req, res) => {
       if (saveAddress) customer.savedAddress = { address, state, city, phone };
       writeJSON('customers.json', customers);
 
-      // Each purchase takes one unit out of stock; a product that hits zero
+      // Each purchase takes the bought quantity out of stock; a product that hits zero
       // flips to Out of Stock automatically for every future shopper.
       orderItems.forEach(item => {
         const stocked = products.find(p => p.id === item.id);
         if (stocked && typeof stocked.stock === 'number') {
-          stocked.stock = Math.max(0, stocked.stock - 1);
+          stocked.stock = Math.max(0, stocked.stock - item.quantity);
           stocked.status = stocked.stock > 0 ? 'In Stock' : 'Out of Stock';
         }
       });
@@ -1941,7 +1965,7 @@ const server = http.createServer((req, res) => {
 
       // Tell the admin straight away (WhatsApp + email) that someone just bought something.
       try {
-        const names = orderItems.map(i => i.name).join(', ');
+        const names = orderItems.map(itemLabel).join(', ');
         const sellerList = readJSON('sellers.json');
         const stores = [...new Set(orderItems.map(i => i.sellerEmail).filter(Boolean))].map(e => {
           const sl = sellerList.find(x => x.email === e);

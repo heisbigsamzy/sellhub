@@ -781,7 +781,7 @@
     }
     list.innerHTML = visible.slice().reverse().map(o => {
       const myItems = o.items.filter(i => i.sellerEmail === seller.email);
-      const myTotal = myItems.reduce((s, i) => s + (i.effectivePrice || i.price), 0);
+      const myTotal = myItems.reduce((s, i) => s + (i.effectivePrice || i.price) * (i.quantity || 1), 0);
       const nextStep = STATUS_STEPS[STATUS_STEPS.indexOf(o.status) + 1];
       const t = o.tracking || {};
       const canCancel = o.status !== 'Delivered' && o.status !== 'Cancelled';
@@ -793,7 +793,7 @@
           </div>
           <div class="order-customer">Customer: ${o.fullName || 'N/A'} · ${o.phone || 'No phone'} · ${o.deliveryEmail || o.customerEmail || ''}</div>
           <div class="order-customer">Deliver to: ${o.address || ''}${o.city ? ', ' + o.city : ''}${o.state ? ', ' + o.state : ''}</div>
-          ${myItems.map(i => `<div class="order-item-row"><span>${i.name}</span><span>${money(i.effectivePrice || i.price)}</span></div>`).join('')}
+          ${myItems.map(i => `<div class="order-item-row"><span>${i.name}${(i.quantity || 1) > 1 ? ' <b>×' + i.quantity + '</b>' : ''}</span><span>${money((i.effectivePrice || i.price) * (i.quantity || 1))}</span></div>`).join('')}
           <div class="order-mine-total"><span>Your share</span><span>${money(myTotal)}</span></div>
 
           ${o.status === 'Cancelled' ? `
