@@ -741,6 +741,13 @@ function serveFile(res, fileName, extraHeaders) {
   });
 }
 
+// Thumbnails must line up one-to-one with the photos and be small JPEGs (or links we already stored).
+function cleanThumbs(thumbs, images) {
+  if (!Array.isArray(thumbs) || thumbs.length !== images.length) return [];
+  const ok = t => typeof t === 'string' && ((/^data:image\/jpeg;base64,/.test(t) && t.length < 400000) || /^\/blob\/[a-f0-9]{48}\.jpg$/.test(t));
+  return thumbs.every(ok) ? thumbs : [];
+}
+
 // ---------- SEARCH ENGINES (SEO) ----------
 const SITE_URL = (process.env.PUBLIC_URL || 'https://sellhubmarket.xyz').replace(/\/+$/, '');
 // Pages that should never show up in Google (private or admin screens).
@@ -958,7 +965,7 @@ const server = http.createServer((req, res) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, {
         'Content-Type': BLOB_MIME[name.split('.')[1]],
-        'Cache-Control': 'private, max-age=86400',
+        'Cache-Control': 'private, max-age=604800, immutable',
         'X-Robots-Tag': 'noindex',
         'X-Content-Type-Options': 'nosniff'
       });
@@ -1550,6 +1557,23 @@ const server = http.createServer((req, res) => {
     if (reminderRunning) return sendJSON(res, { ok: false, message: 'A reminder run is already in progress.' });
     runCustomerReminders().catch(e => console.log('Reminder error:', e.message));
     sendJSON(res, { ok: true, message: 'Sending now to every customer who has not unsubscribed. You will get a WhatsApp summary when it is done.' });
+    return;
+  }
+
+  // ---------- ADMIN: PRODUCT THUMBNAILS (one-time speed-up for older products) ----------
+  if (req.method === 'POST' && req.url === '/api/admin/products/thumbs') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    readBody(req).then(({ id, thumbs }) => {
+      const products = readJSON('products.json');
+      const p = products.find(x => x.id === id);
+      if (!p) return sendJSON(res, { ok: false, message: 'Product not found.' });
+      const clean = cleanThumbs(thumbs, (p.images || []).filter(Boolean));
+      if (!clean.length) return sendJSON(res, { ok: false, message: 'Thumbnails did not match the photos.' });
+      p.thumbs = clean;
+      writeJSON('products.json', products);
+      sendJSON(res, { ok: true });
+    });
     return;
   }
 
@@ -2488,6 +2512,8 @@ const server = http.createServer((req, res) => {
       const sizes = Array.isArray(body.sizes) ? body.sizes.filter(Boolean) : [];
       const colors = Array.isArray(body.colors) ? body.colors.filter(Boolean) : [];
       const images = Array.isArray(body.images) ? body.images.filter(Boolean) : [];
+      // Small copies of the photos for the product grid (made in the seller's browser).
+      const thumbs = cleanThumbs(body.thumbs, images);
 
       if (!name) return sendJSON(res, { ok: false, message: 'Product name is required.' });
       if (!price || price <= 0) return sendJSON(res, { ok: false, message: 'Enter a valid price.' });
@@ -2499,7 +2525,7 @@ const server = http.createServer((req, res) => {
       const products = readJSON('products.json');
       const newProduct = {
         id: Date.now(),
-        name, description, price, discountPrice, stock, category, sku, sizes, colors, images,
+        name, description, price, discountPrice, stock, category, sku, sizes, colors, images, thumbs,
         status: stock > 0 ? 'In Stock' : 'Out of Stock',
         sellerEmail: session.email,
         storeName: seller ? seller.businessName : 'My Store',
@@ -2537,7 +2563,10 @@ const server = http.createServer((req, res) => {
       if (body.sku !== undefined) product.sku = (body.sku || '').trim();
       if (Array.isArray(body.sizes)) product.sizes = body.sizes.filter(Boolean);
       if (Array.isArray(body.colors)) product.colors = body.colors.filter(Boolean);
-      if (Array.isArray(body.images) && body.images.length > 0) product.images = body.images.filter(Boolean);
+      if (Array.isArray(body.images) && body.images.length > 0) {
+        product.images = body.images.filter(Boolean);
+        product.thumbs = cleanThumbs(body.thumbs, product.images);   // never keep thumbnails of a photo that was replaced
+      }
 
       writeJSON('products.json', products);
       sendJSON(res, { ok: true, message: 'Product updated!', product });

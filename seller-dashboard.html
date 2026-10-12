@@ -643,7 +643,7 @@
 
     grid.innerHTML = visible.map(p => {
       const thumb = (p.images && p.images[0])
-        ? `<img src="${p.images[0]}">`
+        ? `<img src="${(p.thumbs && p.thumbs[0]) || p.images[0]}" loading="lazy" decoding="async">`
         : `<div class="no-photo">No photo</div>`;
       const isIn = p.status !== 'Out of Stock';
       const priceRow = p.discountPrice
@@ -702,8 +702,27 @@
     openModal('productModal');
   }
 
+  // Makes a small (about 400px) copy of a photo for the customers' product grid.
+  function makeThumb(src){
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, 400 / img.width);
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale)); c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.72));
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
   async function saveProduct(){
     const id = document.getElementById('pm_id').value;
+    const thumbList = await Promise.all(productPhotos.map(makeThumb));
     const splitTags = (val) => val.split(',').map(s => s.trim()).filter(Boolean);
     const body = {
       name: document.getElementById('pm_name').value,
@@ -715,7 +734,8 @@
       category: document.getElementById('pm_category').value,
       sizes: splitTags(document.getElementById('pm_sizes').value),
       colors: splitTags(document.getElementById('pm_colors').value),
-      images: productPhotos
+      images: productPhotos,
+      thumbs: thumbList.every(Boolean) ? thumbList : []
     };
     if (id) body.id = Number(id);
     const url = id ? '/api/seller/products/update' : '/api/seller/products/add';

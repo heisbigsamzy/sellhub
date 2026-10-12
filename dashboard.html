@@ -69,6 +69,12 @@
   .p-card:hover::before{left:130%;}
   .p-thumb{aspect-ratio:4/5; border-radius:var(--radius-sm); margin-bottom:12px; position:relative; overflow:hidden; background:var(--mint-50);}
   .p-thumb img{width:100%; height:100%; object-fit:contain; display:block;}
+  .p-thumb{background:linear-gradient(100deg,#e4f1ea 30%,#f4faf7 50%,#e4f1ea 70%); background-size:220% 100%; animation:thumbShim 1.3s linear infinite;}
+  @keyframes thumbShim{to{background-position:-220% 0}}
+  .p-thumb img{opacity:0; transition:opacity .35s ease;}
+  .p-thumb img.ld{opacity:1;}
+  .p-thumb img.pt-bg.ld{opacity:.55;}
+  @media (prefers-reduced-motion:reduce){.p-thumb{animation:none}}
   .p-thumb img.pt-bg{position:absolute; inset:0; object-fit:cover; filter:blur(16px) saturate(1.1); transform:scale(1.3); opacity:.55;}
   .p-thumb img:not(.pt-bg){position:relative; z-index:1;}
   .p-thumb .p-stock-badge{z-index:2;}
@@ -459,9 +465,14 @@
   }
 
   // soft blurred copy of the photo behind it, so any empty space around an uncropped photo blends in
-  function thumbBg(p){ return (p.images && p.images[0]) ? `<img class="pt-bg" src="${p.images[0]}" alt="">` : ''; }
-  function productThumb(p){
-    return (p.images && p.images[0]) ? `<img src="${p.images[0]}">` : '';
+  // The grid uses the small copy of the photo (p.thumbs) when there is one, and only
+  // loads pictures as they come near the screen. Full-size photos open in the product popup.
+  const gridSrc = p => (p.thumbs && p.thumbs[0]) || (p.images && p.images[0]) || '';
+  const imgLoaded = 'onload="this.classList.add(\'ld\')" onerror="this.classList.add(\'ld\')"';
+  function thumbBg(p){ return gridSrc(p) ? `<img class="pt-bg" src="${gridSrc(p)}" alt="" loading="lazy" decoding="async" ${imgLoaded}>` : ''; }
+  function productThumb(p, full){
+    const src = full ? (p.images && p.images[0]) : gridSrc(p);
+    return src ? `<img src="${src}" alt="${(p.name || '').replace(/"/g, '')}" loading="lazy" decoding="async" ${imgLoaded}>` : '';
   }
 
   // Builds the swipeable gallery shown in the product popup. Customers can
@@ -470,12 +481,12 @@
   function productGallery(p){
     const images = (p.images || []).filter(Boolean);
     if (images.length === 0) {
-      return `<div class="gallery"><div class="gallery-slide">${productThumb(p)}</div></div>`;
+      return `<div class="gallery"><div class="gallery-slide">${productThumb(p, true)}</div></div>`;
     }
     return `
       <div class="gallery" id="productGallery">
         <div class="gallery-track" id="galleryTrack">
-          ${images.map(src => `<div class="gallery-slide" onclick="openLightbox('${src}')"><img src="${src}"></div>`).join('')}
+          ${images.map((src, k) => `<div class="gallery-slide" onclick="openLightbox('${src}')"><img src="${src}" ${k > 0 ? 'loading="lazy" decoding="async"' : ''}></div>`).join('')}
         </div>
         ${images.length > 1 ? `
           <button class="gallery-arrow left" onclick="galleryNav(-1)">&#8249;</button>

@@ -200,6 +200,12 @@
       <div class="panel active" id="panel-overview">
         <h1 class="page-title">Overview</h1>
         <div class="stat-row" id="statRow"></div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">⚡ Speed up product photos</div>
+          <div class="card-sub" style="margin:6px 0 10px;">Makes small copies of older product photos so customers see them faster. Run it once; new products do this automatically.</div>
+          <div class="actions"><button class="btn approve" id="thumbBtn" onclick="backfillThumbs()">Make small photos now</button></div>
+          <div id="thumbMsg" class="card-sub" style="margin-top:8px;"></div>
+        </div>
       </div>
 
       <div class="panel" id="panel-sellers">
@@ -939,6 +945,33 @@
     alert(r.message || 'Done');
     loadReminders();
   }
+  // Makes small copies of every older product's photos, in this browser, and saves them.
+  async function backfillThumbs(){
+    const btn = document.getElementById('thumbBtn'), msg = document.getElementById('thumbMsg');
+    btn.disabled = true;
+    const shrink = src => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => { try { const sc = Math.min(1, 400 / img.width); const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc)); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.72)); } catch (e) { resolve(null); } };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+    try {
+      const all = (await (await fetch('/api/products')).json()).products || [];
+      const todo = all.filter(p => (p.images || []).filter(Boolean).length && !(p.thumbs && p.thumbs.length));
+      let done = 0, failed = 0;
+      for (const p of todo) {
+        msg.textContent = `Working… ${done + failed} of ${todo.length}`;
+        const imgs = p.images.filter(Boolean);
+        const thumbs = await Promise.all(imgs.map(shrink));
+        if (!thumbs.every(Boolean)) { failed++; continue; }
+        const r = await (await authedFetch('/api/admin/products/thumbs', { method: 'POST', body: JSON.stringify({ id: p.id, thumbs }) })).json();
+        if (r.ok) done++; else failed++;
+      }
+      msg.textContent = todo.length ? `Done. ${done} products sped up${failed ? ', ' + failed + ' could not be processed' : ''}.` : 'All products already have small photos.';
+    } catch (e) { msg.textContent = 'Something went wrong: ' + e.message; }
+    btn.disabled = false;
+  }
+
   // ---- Orders monitor: polls every 8 seconds, flags new orders, beeps ----
   let allOrders = [], ordersFirst = true, orderSound = true;
   const seenKey = 'sellhub_admin_orders_seen';
