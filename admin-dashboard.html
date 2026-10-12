@@ -210,6 +210,15 @@
       </div>
 
       <div class="panel" id="panel-customers">
+        <div class="card" id="reminderCard" style="margin-bottom:14px;">
+          <div class="card-top"><div><div class="card-title">📣 Weekly shopping reminders</div>
+            <div class="card-sub" id="remSchedule">Email + WhatsApp to customers every Monday, Wednesday and Friday at 10:00 (Lagos time)</div></div></div>
+          <div id="remStats" class="card-sub" style="margin:8px 0;">Loading…</div>
+          <div class="actions">
+            <button class="btn approve" onclick="testReminder()">Send me a test</button>
+            <button class="btn reject" onclick="sendReminderNow()">Send to all customers now</button>
+          </div>
+        </div>
         <h1 class="page-title">Customers</h1>
         <p style="font-size:13px; color:var(--gray-600); margin:-6px 0 16px;" id="customersSub">Everyone who signed up as a customer, with what they entered and how much they've bought.</p>
         <input id="customerSearch" type="text" class="search-input" placeholder="Search by name, email, or phone…" oninput="renderCustomers()">
@@ -395,7 +404,7 @@
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
     closeSidebar();
     window.scrollTo(0, 0);
-    if (name === 'customers') loadCustomers().catch(() => {});
+    if (name === 'customers') { loadCustomers().catch(() => {}); loadReminders(); }
     if (name === 'activity') loadActivity().catch(() => {});
     if (name === 'orders') { loadOrders().catch(() => {}); markOrdersSeen(); }
   }
@@ -912,6 +921,24 @@
       </div>`).join('') : `<div class="empty"><h3>No reviews yet</h3></div>`;
   }
 
+  async function loadReminders(){
+    try {
+      const r = await (await authedFetch('/api/admin/reminders')).json();
+      if (!r.ok) return;
+      const last = r.lastRun ? `Last sent ${new Date(r.lastRun.at).toLocaleString()}: ${r.lastRun.emails} emails, ${r.lastRun.whatsapp} WhatsApp, ${r.lastRun.failed} failed.` : 'Not sent yet.';
+      document.getElementById('remStats').innerHTML = `${r.enabled ? '<b style="color:#0b6b3a">ON</b>' : '<b style="color:#b91c1c">OFF (CUSTOMER_REMINDERS=off)</b>'} · ${r.customers} customers · ${r.withPhone} with a phone for WhatsApp · ${r.optedOut} unsubscribed<br>${last}${r.running ? ' <b>Sending now…</b>' : ''}`;
+    } catch (e) {}
+  }
+  async function testReminder(){
+    const r = await (await authedFetch('/api/admin/reminders/test', { method: 'POST', body: '{}' })).json();
+    alert(r.message || 'Done');
+  }
+  async function sendReminderNow(){
+    if (!confirm('Send the shopping reminder (email + WhatsApp) to EVERY customer who has not unsubscribed, right now?')) return;
+    const r = await (await authedFetch('/api/admin/reminders/send-now', { method: 'POST', body: '{}' })).json();
+    alert(r.message || 'Done');
+    loadReminders();
+  }
   // ---- Orders monitor: polls every 8 seconds, flags new orders, beeps ----
   let allOrders = [], ordersFirst = true, orderSound = true;
   const seenKey = 'sellhub_admin_orders_seen';

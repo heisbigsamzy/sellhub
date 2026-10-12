@@ -832,6 +832,121 @@ function describeSeller(email, orderItems, allSellers, allDisputes) {
   };
 }
 
+// ---------- CUSTOMER REMINDERS (Mon / Wed / Fri) ----------
+// Three times a week (Monday, Wednesday, Friday at 10:00 Lagos time) every customer gets an
+// email and a WhatsApp message with a few new products and a nudge to check their orders.
+// Customers can stop them with the unsubscribe link in every message. Switch the whole
+// thing off with CUSTOMER_REMINDERS=off in Render -> Environment.
+const REMINDERS_ON = String(process.env.CUSTOMER_REMINDERS || 'on').toLowerCase() !== 'off';
+const REMINDER_DAYS = { Mon: 0, Wed: 1, Fri: 2 };
+const REMINDER_HOUR = 10;            // Lagos time
+const REMINDER_LAST_HOUR = 20;       // if the server was asleep all day, skip rather than message at night
+const WA_GAP_MS = 4000;              // gap between WhatsApp messages (sending too fast can get a number blocked)
+const MAIL_GAP_MS = 250;
+
+function lagosNow() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).reduce((o, p) => { o[p.type] = p.value; return o; }, {});
+  return { weekday: parts.weekday, date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+}
+function unsubSecret() {
+  const st = getSettings();
+  if (!st.unsubSecret) { st.unsubSecret = crypto.randomBytes(24).toString('hex'); writeJSON('settings.json', st); }
+  return st.unsubSecret;
+}
+function unsubToken(email) { return crypto.createHmac('sha256', unsubSecret()).update(String(email).toLowerCase()).digest('hex').slice(0, 32); }
+function unsubLink(email) { return `${SITE_URL}/unsubscribe?e=${encodeURIComponent(email)}&t=${unsubToken(email)}`; }
+
+// Up to 4 of the newest in-stock products, one per seller first so different stores get seen.
+function pickNewProducts(limit = 4) {
+  const sellers = readJSON('sellers.json');
+  const live = s => sellers.find(x => x.email === s && !x.suspended);
+  const list = readJSON('products.json').filter(p => p.status !== 'Out of Stock' && (p.stock == null || p.stock > 0) && live(p.sellerEmail))
+    .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+  const picked = [], seen = new Set();
+  for (const p of list) { if (!seen.has(p.sellerEmail)) { seen.add(p.sellerEmail); picked.push(p); } if (picked.length >= limit) break; }
+  for (const p of list) { if (picked.length >= limit) break; if (!picked.includes(p)) picked.push(p); }
+  return picked;
+}
+
+const REMINDER_COPY = [
+  { subject: n => `🛍️ ${n}, new arrivals on SellHub this week`, intro: 'Fresh products from verified sellers just landed on SellHub.' },
+  { subject: n => `${n}, check out what is new on SellHub`, intro: 'New items were added since your last visit. Take a look before they sell out.' },
+  { subject: n => `Weekend shopping? New on SellHub, ${n}`, intro: 'Start your weekend with something new from our verified sellers.' }
+];
+
+function buildReminder(customer, variant) {
+  const first = (customer.fullName || 'there').trim().split(/\s+/)[0];
+  const copy = REMINDER_COPY[variant % REMINDER_COPY.length];
+  const products = pickNewProducts(4);
+  const myOrders = readJSON('orders.json').filter(o => o.customerEmail === customer.email && o.status !== 'Delivered' && o.status !== 'Cancelled');
+  const orderLine = myOrders.length ? `You have ${myOrders.length} order${myOrders.length > 1 ? 's' : ''} in progress. Log in to check ${myOrders.length > 1 ? 'their' : 'its'} status.` : 'You can check your orders and track deliveries anytime in your account.';
+  const shopUrl = `${SITE_URL}/dashboard`;
+  const unsub = unsubLink(customer.email);
+  const money = n => '₦' + Number(n).toLocaleString();
+  const price = p => money(p.discountPrice || p.price);
+
+  const rows = products.map(p => {
+    const img = p.images && p.images[0] ? (String(p.images[0]).startsWith('http') ? p.images[0] : SITE_URL + p.images[0]) : '';
+    return `<tr><td style="padding:10px 0;border-bottom:1px solid #e6eee9;">
+      ${img ? `<img src="${img}" width="72" height="72" alt="" style="border-radius:10px;object-fit:cover;vertical-align:middle;margin-right:12px;float:left;">` : ''}
+      <div style="font-weight:700;color:#0b2f1c;">${escHtml(p.name)}</div>
+      <div style="color:#0b6b3a;font-weight:800;">${price(p)}</div>
+      <div style="color:#5a6b61;font-size:12px;">${escHtml(p.storeName || '')}</div></td></tr>`;
+  }).join('');
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0b2f1c;">
+    <p>Hi ${escHtml(first)},</p>
+    <p>${copy.intro}</p>
+    ${rows ? `<table width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 14px;">${rows}</table>` : ''}
+    <p>${orderLine}</p>
+    <p style="margin:20px 0;"><a href="${shopUrl}" style="background:#0b6b3a;color:#fff;text-decoration:none;font-weight:800;padding:14px 26px;border-radius:99px;display:inline-block;">Shop new arrivals</a></p>
+    <p style="color:#5a6b61;font-size:12px;">You get this because you have a SellHub account. <a href="${unsub}">Unsubscribe</a> any time.</p></div>`;
+  const wa = [`Hi ${first} 👋 SellHub here.`, copy.intro, '',
+    ...products.map(p => `• ${p.name}: ${price(p)}`),
+    '', orderLine, `Shop now: ${shopUrl}`, '', `Stop these messages: ${unsub}`].join('\n');
+  return { subject: copy.subject(first), html, wa };
+}
+
+let reminderRunning = false;
+async function runCustomerReminders(opts = {}) {
+  if (reminderRunning) return { ok: false, message: 'A reminder run is already in progress.' };
+  reminderRunning = true;
+  const variant = opts.variant != null ? opts.variant : (REMINDER_DAYS[lagosNow().weekday] || 0);
+  const stats = { date: lagosNow().date, emails: 0, whatsapp: 0, failed: 0, skippedOptOut: 0, total: 0 };
+  try {
+    const all = readJSON('customers.json').filter(c => c.email);
+    const customers = all.filter(c => { if (c.marketingOptOut) { stats.skippedOptOut++; return false; } return true; });
+    stats.total = customers.length;
+    for (const c of customers) {
+      const msg = buildReminder(c, variant);
+      try { await sendEmail(c.email, msg.subject, msg.html); stats.emails++; } catch (e) { stats.failed++; console.log('Reminder email error:', e.message); }
+      await new Promise(r => setTimeout(r, MAIL_GAP_MS));
+      const phone = c.phone || (c.savedAddress && c.savedAddress.phone);
+      if (phone) {
+        const r = await sendWhatsApp(phone, msg.wa);
+        if (r && r.ok) stats.whatsapp++; else stats.failed++;
+        await new Promise(r2 => setTimeout(r2, WA_GAP_MS));
+      }
+    }
+  } catch (e) { console.log('Reminder run error:', e.message); }
+  reminderRunning = false;
+  const st = getSettings(); st.reminderState = Object.assign({}, st.reminderState, { lastDate: stats.date, lastRun: Object.assign({ at: new Date().toISOString() }, stats) });
+  writeJSON('settings.json', st);
+  notifyAdmin(`SellHub: customer reminders sent. Emails ${stats.emails}, WhatsApp ${stats.whatsapp}, failed ${stats.failed}, unsubscribed ${stats.skippedOptOut}.`);
+  return { ok: true, stats };
+}
+function checkReminderSchedule() {
+  if (!REMINDERS_ON || reminderRunning) return;
+  const now = lagosNow();
+  if (!(now.weekday in REMINDER_DAYS) || now.hour < REMINDER_HOUR || now.hour >= REMINDER_LAST_HOUR) return;
+  const st = getSettings();
+  if (st.reminderState && st.reminderState.lastDate === now.date) return;   // already sent today
+  // Mark today as handled first, so a restart in the middle of a run can never double-send.
+  st.reminderState = Object.assign({}, st.reminderState, { lastDate: now.date });
+  writeJSON('settings.json', st);
+  runCustomerReminders().catch(e => console.log('Reminder error:', e.message));
+}
+
 const server = http.createServer((req, res) => {
 
   // Ignore any ?query=string when matching a page, so returning from
@@ -861,7 +976,7 @@ const server = http.createServer((req, res) => {
   }
   if (req.method === 'GET' && pagePath === '/robots.txt') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin-login\nDisallow: /admin-dashboard\nDisallow: /dashboard\nDisallow: /seller-dashboard\nDisallow: /seller-onboarding\nDisallow: /verification-center\nDisallow: /forgot-password\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+    res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin-login\nDisallow: /admin-dashboard\nDisallow: /dashboard\nDisallow: /seller-dashboard\nDisallow: /seller-onboarding\nDisallow: /verification-center\nDisallow: /forgot-password\nDisallow: /unsubscribe\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
     return;
   }
   if (req.method === 'GET' && pagePath === '/sitemap.xml') {
@@ -1374,6 +1489,59 @@ const server = http.createServer((req, res) => {
     });
     // Newest signup first (customers.json is appended in signup order).
     sendJSON(res, { ok: true, customers: list.reverse() });
+    return;
+  }
+
+  // ---------- UNSUBSCRIBE FROM REMINDERS ----------
+  if (req.method === 'GET' && pagePath === '/unsubscribe') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const email = String(q.get('e') || '').toLowerCase(), token = String(q.get('t') || '');
+    const page = (title, body) => { res.writeHead(200, { 'Content-Type': 'text/html', 'X-Robots-Tag': 'noindex' });
+      res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:Arial,sans-serif;background:#eef7f1;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0"><div style="background:#fff;border-radius:20px;padding:32px;max-width:420px;margin:16px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.1)"><h2 style="color:#0b6b3a">${title}</h2><p style="color:#333;line-height:1.5">${body}</p><p><a href="/" style="color:#0b6b3a;font-weight:700">Go to SellHub</a></p></div>`); };
+    let valid = false;
+    try { valid = email && token.length === 32 && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(unsubToken(email))); } catch (e) {}
+    if (!valid) { page('Link not valid', 'This unsubscribe link is not valid. Contact support@sellhubmarket.xyz and we will remove you.'); return; }
+    const customers = readJSON('customers.json');
+    const c = customers.find(x => String(x.email).toLowerCase() === email);
+    if (!c) { page('Not found', 'We could not find that account.'); return; }
+    const undo = q.get('undo') === '1';
+    c.marketingOptOut = !undo;
+    writeJSON('customers.json', customers);
+    if (undo) page('You are subscribed again', 'You will get our Monday, Wednesday and Friday updates again.');
+    else page('You are unsubscribed', `You will no longer get our shopping reminders. Order updates about your purchases will still reach you.<br><br><a href="${unsubLink(email)}&undo=1" style="color:#0b6b3a">Changed your mind? Subscribe again</a>`);
+    return;
+  }
+
+  // ---------- ADMIN: CUSTOMER REMINDERS ----------
+  if (req.method === 'GET' && req.url === '/api/admin/reminders') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const st = getSettings();
+    const customers = readJSON('customers.json');
+    sendJSON(res, { ok: true, enabled: REMINDERS_ON, schedule: 'Monday, Wednesday and Friday at 10:00 (Lagos time)', running: reminderRunning,
+      customers: customers.length, optedOut: customers.filter(c => c.marketingOptOut).length, withPhone: customers.filter(c => !c.marketingOptOut && (c.phone || (c.savedAddress && c.savedAddress.phone))).length,
+      lastRun: (st.reminderState && st.reminderState.lastRun) || null });
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/api/admin/reminders/test') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    (async () => {
+      const me = { email: ADMIN_EMAIL || 'admin@sellhubmarket.xyz', fullName: 'Admin', phone: ADMIN_WHATSAPP_PHONE };
+      const msg = buildReminder(me, 0);
+      let emailState = 'ADMIN_EMAIL is not set', waState = 'ADMIN_WHATSAPP_PHONE is not set';
+      if (ADMIN_EMAIL) { try { await sendEmail(ADMIN_EMAIL, '[TEST] ' + msg.subject, msg.html); emailState = 'sent to ' + ADMIN_EMAIL; } catch (e) { emailState = 'failed: ' + e.message; } }
+      if (ADMIN_WHATSAPP_PHONE) { const r = await sendWhatsApp(ADMIN_WHATSAPP_PHONE, msg.wa); waState = r.ok ? 'sent' : 'not sent (' + r.reason + ')'; }
+      sendJSON(res, { ok: true, message: `Test reminder:\nEmail: ${emailState}\nWhatsApp: ${waState}` });
+    })();
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/api/admin/reminders/send-now') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    if (reminderRunning) return sendJSON(res, { ok: false, message: 'A reminder run is already in progress.' });
+    runCustomerReminders().catch(e => console.log('Reminder error:', e.message));
+    sendJSON(res, { ok: true, message: 'Sending now to every customer who has not unsubscribed. You will get a WhatsApp summary when it is done.' });
     return;
   }
 
@@ -3040,4 +3208,5 @@ restoreData
   }, CODE_STATE_FILES))
   .finally(() => {
     server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
+    if (REMINDERS_ON) { setTimeout(checkReminderSchedule, 60 * 1000).unref(); setInterval(checkReminderSchedule, 10 * 60 * 1000).unref(); }
   });
