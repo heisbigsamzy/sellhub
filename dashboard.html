@@ -146,26 +146,25 @@
 
   .wallet-card{
     background:linear-gradient(145deg,#0B3D28 0%,#0E5436 58%,#12864F 150%);
-    border-radius:28px; padding:28px; color:#fff; position:relative; overflow:hidden;
-    box-shadow:0 30px 60px -26px rgba(11,61,40,0.65);
+    border-radius:20px; padding:18px 20px; color:#fff; position:relative; overflow:hidden; max-width:440px;
+    box-shadow:0 16px 34px -20px rgba(11,61,40,0.6);
   }
-  .wallet-card::before{content:""; position:absolute; right:-70px; top:-70px; width:250px; height:250px; border-radius:50%; border:42px solid rgba(255,255,255,0.05); pointer-events:none;}
-  .wallet-card::after{content:""; position:absolute; right:-30px; bottom:-90px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); pointer-events:none;}
-  .wallet-top{display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; font-size:14px; font-weight:800; color:rgba(255,255,255,0.88);}
-  .wallet-cur{font-size:11px; font-weight:800; letter-spacing:.06em; padding:5px 11px; border-radius:99px; background:rgba(255,255,255,0.14);}
-  .wallet-label{font-size:13px; color:rgba(255,255,255,0.68); font-weight:700; margin-top:26px; position:relative; z-index:1;}
-  .wallet-balance{font-family:'Manrope',sans-serif; font-size:46px; font-weight:800; letter-spacing:-0.03em; margin-top:4px; position:relative; z-index:1; font-variant-numeric:tabular-nums; line-height:1.1;}
-  .deposit-box{display:flex; gap:10px; margin-top:12px; position:relative; z-index:1;}
-  .deposit-label{font-size:13px; font-weight:800; margin-top:22px; color:rgba(255,255,255,0.85); position:relative; z-index:1;}
-  .quick-amts{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; position:relative; z-index:1;}
-  .quick-amts button{background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22); color:#fff; padding:8px 14px; border-radius:99px; font-size:13px; font-weight:700; font-family:'Manrope',sans-serif; cursor:pointer; transition:background .2s;}
-  .quick-amts button:hover{background:rgba(255,255,255,0.22);}
-  .deposit-box input{min-width:0; flex:1; padding:13px 15px; border-radius:var(--radius-sm); border:none; font-size:16px; font-family:'Manrope',sans-serif;}
-  .deposit-box button{padding:13px 22px; white-space:nowrap; background:var(--green-400); color:var(--green-900); border:none; border-radius:var(--radius-sm); font-weight:700; cursor:pointer; font-family:'Manrope',sans-serif; transition:transform .2s;}
-  .deposit-box button:hover{transform:translateY(-1px);}
-  .wallet-msg{margin-top:12px; font-size:13px; font-weight:700; color:var(--green-400); position:relative; z-index:1;}
+  .wallet-card::before{content:""; position:absolute; right:-50px; top:-50px; width:150px; height:150px; border-radius:50%; border:28px solid rgba(255,255,255,0.05); pointer-events:none;}
+  .wallet-card::after{content:""; position:absolute; right:-20px; bottom:-60px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); pointer-events:none;}
+  .wallet-top{display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; font-size:13px; font-weight:800; color:rgba(255,255,255,0.88);}
+  .wallet-cur{font-size:10px; font-weight:800; letter-spacing:.06em; padding:4px 9px; border-radius:99px; background:rgba(255,255,255,0.14);}
+  .wallet-label{font-size:12px; color:rgba(255,255,255,0.68); font-weight:700; margin-top:14px; position:relative; z-index:1;}
+  .wallet-balance{font-family:'Manrope',sans-serif; font-size:32px; font-weight:800; letter-spacing:-0.02em; margin-top:2px; position:relative; z-index:1; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .add-box{background:#fff; border:1px solid var(--gray-300); border-radius:18px; padding:16px; margin-top:12px; max-width:440px; box-shadow:var(--shadow-resting);}
+  .deposit-box{display:flex; gap:8px; margin-top:10px;}
+  .deposit-label{font-size:13px; font-weight:800; color:var(--ink);}
+  .quick-amts{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  .quick-amts button{background:var(--mint,#EAF7EF); border:1px solid rgba(15,122,74,.18); color:#0B3D28; padding:7px 12px; border-radius:99px; font-size:12.5px; font-weight:700; font-family:'Manrope',sans-serif; cursor:pointer;}
+  .deposit-box input{min-width:0; flex:1; padding:11px 13px; border-radius:12px; border:1px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif;}
+  .deposit-box button{padding:11px 16px; white-space:nowrap; background:#0F7A4A; color:#fff; border:none; border-radius:12px; font-weight:700; cursor:pointer; font-family:'Manrope',sans-serif;}
+  .wallet-msg{margin-top:10px; font-size:13px; font-weight:700; color:#0F7A4A;}
 
-  .txn-list{margin-top:26px;}
+  .txn-list{margin-top:18px; max-width:440px;}
   .txn-heading{font-weight:800; font-size:16px; margin:0 0 12px; letter-spacing:-0.01em;}
   .txn-row{display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:14px 18px; margin-bottom:10px; box-shadow:var(--shadow-resting); transition:box-shadow .25s, transform .25s;}
   .txn-row:hover{box-shadow:var(--shadow-hover); transform:translateY(-2px);}
@@ -313,6 +312,8 @@
       <div class="wallet-top"><span>SellHub Wallet</span><span class="wallet-cur">NGN</span></div>
       <div class="wallet-label">Available balance</div>
       <div class="wallet-balance" id="walletBalance">₦0</div>
+    </div>
+    <div class="add-box">
       <div class="deposit-label">Add money</div>
       <div class="quick-amts">
         <button type="button" onclick="setDeposit(1000)">₦1,000</button>
@@ -324,8 +325,8 @@
         <input id="depositAmount" type="number" placeholder="Enter amount" oninput="showDepositQuote()">
         <button onclick="deposit()">Add Money</button>
       </div>
-      <div id="depositQuote" style="font-size:12.5px; font-weight:700; margin-top:10px; position:relative; z-index:1;"></div>
-      <div style="font-size:12px; line-height:1.5; opacity:.85; margin-top:10px; position:relative; z-index:1;">Secured by Paystack (card, bank transfer or USSD). Minimum ₦100. Paystack's small processing fee is added to what you pay, and your wallet gets the full amount you enter.</div>
+      <div id="depositQuote" style="font-size:12.5px; font-weight:700; margin-top:10px; color:#0B3D28;"></div>
+      <div style="font-size:12px; line-height:1.5; color:#5a6b61; margin-top:10px;">Secured by Paystack (card, bank transfer or USSD). Minimum ₦100. Paystack's small processing fee is added to what you pay, and your wallet gets the full amount you enter.</div>
       <div class="wallet-msg" id="walletMsg"></div>
     </div>
     <div class="txn-list" id="txnList"></div>

@@ -159,17 +159,17 @@
 
   .wallet-card{
     background:linear-gradient(145deg,#0B3D28 0%,#0E5436 58%,#12864F 150%);
-    border-radius:28px; padding:28px; color:#fff; position:relative; overflow:hidden;
-    box-shadow:0 30px 60px -26px rgba(11,61,40,0.65);
+    border-radius:20px; padding:18px 20px; color:#fff; position:relative; overflow:hidden; max-width:440px;
+    box-shadow:0 16px 34px -20px rgba(11,61,40,0.6);
   }
-  .wallet-card::before{content:""; position:absolute; right:-70px; top:-70px; width:250px; height:250px; border-radius:50%; border:42px solid rgba(255,255,255,0.05); pointer-events:none;}
-  .wallet-card::after{content:""; position:absolute; right:-30px; bottom:-90px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); pointer-events:none;}
-  .wallet-top{display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; font-size:14px; font-weight:800; color:rgba(255,255,255,0.88);}
-  .wallet-cur{font-size:11px; font-weight:800; letter-spacing:.06em; padding:5px 11px; border-radius:99px; background:rgba(255,255,255,0.14);}
-  .wallet-label{font-size:13px; color:rgba(255,255,255,0.68); font-weight:700; margin-top:26px; position:relative; z-index:1;}
-  .wallet-balance{font-family:'Manrope',sans-serif; font-size:46px; font-weight:800; letter-spacing:-0.03em; margin-top:4px; position:relative; z-index:1; font-variant-numeric:tabular-nums; line-height:1.1;}
+  .wallet-card::before{content:""; position:absolute; right:-50px; top:-50px; width:150px; height:150px; border-radius:50%; border:28px solid rgba(255,255,255,0.05); pointer-events:none;}
+  .wallet-card::after{content:""; position:absolute; right:-20px; bottom:-60px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(63,193,127,0.28),transparent 70%); pointer-events:none;}
+  .wallet-top{display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; font-size:13px; font-weight:800; color:rgba(255,255,255,0.88);}
+  .wallet-cur{font-size:10px; font-weight:800; letter-spacing:.06em; padding:4px 9px; border-radius:99px; background:rgba(255,255,255,0.14);}
+  .wallet-label{font-size:12px; color:rgba(255,255,255,0.68); font-weight:700; margin-top:14px; position:relative; z-index:1;}
+  .wallet-balance{font-family:'Manrope',sans-serif; font-size:32px; font-weight:800; letter-spacing:-0.02em; margin-top:2px; position:relative; z-index:1; font-variant-numeric:tabular-nums; line-height:1.1;}
 
-  .withdraw-form{margin-top:26px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:24px; box-shadow:var(--shadow-resting);}
+  .withdraw-form{margin-top:12px; max-width:440px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:24px; box-shadow:var(--shadow-resting);}
   .withdraw-form label{font-size:12.5px; font-weight:700; margin-top:14px; display:block;}
   .withdraw-form input{width:100%; padding:12px 14px; margin-top:7px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; transition:border-color .2s;}
   .withdraw-form input:focus{outline:none; border-color:var(--green-600);}
@@ -183,7 +183,7 @@
   .fee-breakdown .row{display:flex; justify-content:space-between; padding:3px 0;}
   .fee-breakdown .row.total{font-weight:800; border-top:1px solid rgba(11,61,40,0.15); margin-top:7px; padding-top:9px;}
 
-  .txn-list{margin-top:26px;}
+  .txn-list{margin-top:18px; max-width:440px;}
   .txn-heading{font-weight:800; font-size:16px; margin:0 0 12px; letter-spacing:-0.01em;}
   .txn-row{display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--gray-300); border-radius:var(--radius-md); padding:14px 18px; margin-bottom:10px; box-shadow:var(--shadow-resting); transition:box-shadow .25s, transform .25s;}
   .txn-row:hover{box-shadow:var(--shadow-hover); transform:translateY(-2px);}
