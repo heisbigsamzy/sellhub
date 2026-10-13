@@ -1081,7 +1081,7 @@ const server = http.createServer((req, res) => {
     const f = path.join(__dirname, 'brand', pagePath.slice(1));
     fs.readFile(f, (err, img) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
-      res.writeHead(200, { 'Content-Type': pagePath.endsWith('.svg') ? 'image/svg+xml' : 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.writeHead(200, { 'Content-Type': pagePath.endsWith('.svg') ? 'image/svg+xml' : 'image/png', 'Cache-Control': 'no-cache' });
       res.end(img);
     });
     return;
@@ -1098,7 +1098,7 @@ const server = http.createServer((req, res) => {
     const types = { '/manifest.webmanifest': 'application/manifest+json', '/sw.js': 'application/javascript', '/offline.html': 'text/html' };
     fs.readFile(path.join(__dirname, 'brand', pagePath.slice(1)), (err, buf) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
-      res.writeHead(200, { 'Content-Type': types[pagePath], 'Cache-Control': pagePath === '/sw.js' ? 'no-cache' : 'public, max-age=3600', 'Service-Worker-Allowed': '/' });
+      res.writeHead(200, { 'Content-Type': types[pagePath], 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' });
       res.end(buf);
     });
     return;
