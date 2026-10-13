@@ -6,7 +6,10 @@ const bcrypt = require('bcryptjs');
 const { sendOTPEmail, sendEmail } = require('./mailer');
 const { verifyGoogleToken } = require('./googleAuth');
 const { sendWhatsApp } = require('./whatsapp');
-const { backupFile, restoreAllFiles } = require('./dataBackup');
+const { backupFile: upstashBackup, restoreAllFiles } = require('./dataBackup');
+const pgstore = require('./pgStore');
+// Every save goes to the optional Upstash copy and the optional PostgreSQL database (each does nothing until configured).
+function backupFile(name, text) { upstashBackup(name, text); pgstore.save(name, text); }
 
 // ---------- DATA STORAGE ----------
 // Render's free tier has no permanent disk: every time the service redeploys,
@@ -713,7 +716,9 @@ function externalizeBlob(str) {
   const id = crypto.randomBytes(24).toString('hex');
   try {
     fs.mkdirSync(BLOB_DIR, { recursive: true });
-    fs.writeFileSync(path.join(BLOB_DIR, `${id}.${ext}`), Buffer.from(str.slice(m[0].length), 'base64'));
+    const buf = Buffer.from(str.slice(m[0].length), 'base64');
+    fs.writeFileSync(path.join(BLOB_DIR, `${id}.${ext}`), buf);
+    pgstore.saveBlob(`${id}.${ext}`, buf, m[1].toLowerCase());
   } catch (e) {
     console.log('Could not save image file, keeping it inline:', e.message);
     return str;
@@ -995,8 +1000,7 @@ const server = http.createServer((req, res) => {
   const pagePath = req.url.split('?')[0];
   if (req.method === 'GET' && /^\/blob\/[a-f0-9]{48}\.(jpg|png|webp|gif|pdf)$/.test(pagePath)) {
     const name = pagePath.slice(6);
-    fs.readFile(path.join(BLOB_DIR, name), (err, img) => {
-      if (err) { res.writeHead(404); res.end('Not found'); return; }
+    const sendBlob = img => {
       res.writeHead(200, {
         'Content-Type': BLOB_MIME[name.split('.')[1]],
         'Cache-Control': 'private, max-age=604800, immutable',
@@ -1004,6 +1008,15 @@ const server = http.createServer((req, res) => {
         'X-Content-Type-Options': 'nosniff'
       });
       res.end(img);
+    };
+    fs.readFile(path.join(BLOB_DIR, name), (err, img) => {
+      if (!err) return sendBlob(img);
+      // Not on this server's disk (e.g. after a redeploy): fetch it from the database and keep a local copy.
+      pgstore.getBlob(name).then(row => {
+        if (!row) { res.writeHead(404); res.end('Not found'); return; }
+        try { fs.mkdirSync(BLOB_DIR, { recursive: true }); fs.writeFileSync(path.join(BLOB_DIR, name), row.data); } catch (e) {}
+        sendBlob(row.data);
+      });
     });
     return;
   }
@@ -1620,6 +1633,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ---------- ADMIN: DATABASE STATUS ----------
+  if (req.method === 'GET' && req.url === '/api/admin/db-status') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    sendJSON(res, Object.assign({ ok: true }, pgstore.status()));
+    return;
+  }
+
   // ---------- ADMIN: DOWNLOAD A BACKUP OF ALL DATA ----------
   if (req.method === 'GET' && req.url === '/api/admin/backup') {
     const session = requireAuth(req, res, 'admin');
@@ -1933,7 +1954,7 @@ const server = http.createServer((req, res) => {
       let filesRemoved = 0;
       for (const url of ownedBlobs) {
         if (stillUsed.includes(url)) continue;
-        try { fs.unlinkSync(path.join(BLOB_DIR, path.basename(url))); filesRemoved++; } catch (e) {}
+        pgstore.deleteBlob(path.basename(url)); try { fs.unlinkSync(path.join(BLOB_DIR, path.basename(url))); filesRemoved++; } catch (e) {}
       }
 
       console.log(`Admin ${session.email} permanently deleted seller ${email} (${myProductIds.size} products, ${filesRemoved} photo files).`);
@@ -3285,6 +3306,39 @@ const server = http.createServer((req, res) => {
 // by the time the first request comes in, customers.json/sellers.json/etc
 // already reflect the real, last-known data instead of whatever shipped in
 // the git repo.
+async function bootFromDatabase() {
+    const rows = await pgstore.loadAll();
+  const inDb = new Set(rows.map(r => r.name));
+  const snap = path.join(DATA_DIR, 'backups', 'before-db-restore-' + new Date().toISOString().replace(/[:.]/g, '-'));
+  let restored = 0;
+  for (const r of rows) {
+    const text = JSON.stringify(r.data, null, 2);
+    if (CODE_STATE_FILES.includes(r.name)) {
+      const target = { 'pendingSignups.json': pendingSignups, 'pendingSellerSignups.json': pendingSellerSignups, 'resetCodes.json': resetCodes, 'sessions.json': sessions }[r.name];
+      Object.assign(target, r.data);
+      continue;
+    }
+    if (!DATA_FILES.includes(r.name)) continue;
+    const file = path.join(DATA_DIR, r.name);
+    try {
+      if (fs.existsSync(file) && fs.readFileSync(file, 'utf-8') !== text) {
+        fs.mkdirSync(snap, { recursive: true });
+        fs.copyFileSync(file, path.join(snap, r.name));
+      }
+    } catch (e) {}
+    fs.writeFileSync(file, text);
+    restored++;
+  }
+  // First run against an empty database: upload what this server currently holds.
+  let uploaded = 0;
+  for (const f of DATA_FILES) {
+    if (inDb.has(f)) continue;
+    try { pgstore.save(f, fs.readFileSync(path.join(DATA_DIR, f), 'utf-8')); uploaded++; } catch (e) {}
+  }
+  if (!inDb.has('sessions.json')) persistCodeState();
+  console.log(`🗄️  Database ready: restored ${restored} data files from it, uploaded ${uploaded} that it did not have yet.`);
+  pgstore.syncBlobsFromDisk(BLOB_DIR, fs, path, n => BLOB_MIME[n.split('.')[1]]).catch(e => console.error('Photo sync failed:', e.message));
+}
 loadSessionsFromDisk();
 // On a disk that already holds data, the disk wins: an older backup must
 // never overwrite it. The backup is only pulled down for a brand-new/wiped
@@ -3295,6 +3349,25 @@ const restoreData = (DATA_DIR === __dirname || freshDisk)
     }, DATA_FILES)
   : (console.log('Disk already has data — using it as is (skipping restore from backup).'), Promise.resolve());
 restoreData
+  // PostgreSQL (if DATABASE_URL is set) is the source of truth: load its copy before anything else reads the files.
+  .then(async () => {
+    if (!pgstore.enabled) return;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        if (!(await pgstore.init())) throw new Error(pgstore.status().lastError || 'cannot connect');
+        await bootFromDatabase();
+        return;
+      } catch (e) {
+        console.error(`Database start-up attempt ${attempt} failed: ${e.message}`);
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+    // Could not reach the database. A server with no local data must not start blank (it would overwrite real data later),
+    // so exit and let the host restart it; a server that still has its files keeps running on them.
+    const haveLocal = ['sellers.json', 'customers.json', 'products.json'].some(f => fs.existsSync(path.join(DATA_DIR, f)));
+    if (!haveLocal || freshDisk) { console.error('No local data and no database: refusing to start blank.'); process.exit(1); }
+    console.error('⚠️ Running on local files only; the database could not be reached.');
+  })
   // Move any photos still stored inline in the data files out to image files,
   // so the backup stays small. Safe to run on every boot (does nothing once done).
   .then(() => {
@@ -3321,3 +3394,12 @@ restoreData
     setTimeout(snapshotData, 30 * 1000).unref(); setInterval(snapshotData, 6 * 60 * 60 * 1000).unref();
     if (REMINDERS_ON) { setTimeout(checkReminderSchedule, 60 * 1000).unref(); setInterval(checkReminderSchedule, 10 * 60 * 1000).unref(); }
   });
+
+// On redeploy/shutdown, finish saving to the database before the process ends.
+let shuttingDown = false;
+function gracefulExit() {
+  if (shuttingDown) return; shuttingDown = true;
+  pgstore.flushNow(6000).finally(() => process.exit(0));
+}
+process.on('SIGTERM', gracefulExit);
+process.on('SIGINT', gracefulExit);

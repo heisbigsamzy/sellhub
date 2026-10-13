@@ -207,6 +207,10 @@
         <h1 class="page-title">Overview</h1>
         <div class="stat-row" id="statRow"></div>
         <div class="card" style="margin-top:16px;">
+          <div class="card-title">🗄️ Database</div>
+          <div class="card-sub" id="dbStatus" style="margin:6px 0 0;">Checking…</div>
+        </div>
+        <div class="card" style="margin-top:16px;">
           <div class="card-title">💾 Backup your data</div>
           <div class="card-sub" style="margin:6px 0 10px;">Downloads one file with all customers, sellers, orders and wallet balances. Keep it somewhere safe and private. The server also saves its own copy every day.</div>
           <div class="actions"><button class="btn approve" onclick="downloadBackup()">Download backup now</button></div>
@@ -956,6 +960,16 @@
     alert(r.message || 'Done');
     loadReminders();
   }
+  async function loadDbStatus(){
+    const el = document.getElementById('dbStatus'); if (!el) return;
+    try {
+      const r = await (await authedFetch('/api/admin/db-status')).json();
+      if (!r.enabled) el.innerHTML = '⚪ Not connected. Data is only on the server disk. Add DATABASE_URL on Render to switch it on.';
+      else if (!r.connected) el.innerHTML = '🔴 Could not connect: ' + esc(r.lastError || 'unknown error');
+      else el.innerHTML = '🟢 Connected. Every change is saved to the database' + (r.waiting ? ' (' + r.waiting + ' waiting)' : '') + (r.lastError ? '<br>⚠️ ' + esc(r.lastError) : '') + (r.lastOkAt ? '<br>Last saved: ' + new Date(r.lastOkAt).toLocaleString() : '');
+    } catch (e) { el.textContent = 'Could not check.'; }
+  }
+  loadDbStatus();
   async function downloadBackup(){
     const r = await authedFetch('/api/admin/backup');
     if (!r.ok) return alert('Could not create the backup.');
