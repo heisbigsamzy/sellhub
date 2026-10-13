@@ -685,15 +685,52 @@ function reverseSellerCreditsAndRefundCustomer(order) {
   }
 }
 
+// Text typed by users must never be able to carry HTML: angle brackets are removed from every text field
+// (passwords, codes, tokens and photo data are left alone).
+const KEEP_KEYS = /^(password|newPassword|oldPassword|currentPassword|pin|code|otp|token|credential|idToken|thumbs|images|image|logo|selfie|photo|document)/i;
+function cleanText(node, key) {
+  if (typeof node === 'string') {
+    if (KEEP_KEYS.test(key || '') || node.startsWith('data:') || node.startsWith('/blob/')) return node;
+    return node.replace(/[<>]/g, '');
+  }
+  if (Array.isArray(node)) return node.map(n => cleanText(n, key));
+  if (node && typeof node === 'object') { for (const k of Object.keys(node)) node[k] = cleanText(node[k], k); return node; }
+  return node;
+}
+const MAX_BODY = 25 * 1024 * 1024; // photos arrive inside the body, so this is generous
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
+    let body = '', size = 0, dead = false;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > MAX_BODY) { dead = true; body = ''; req.destroy(); reject(new Error('Request too large')); return; }
+      if (!dead) body += chunk;
+    });
     req.on('end', () => {
-      try { resolve(body ? JSON.parse(body) : {}); }
+      if (dead) return;
+      try { resolve(body ? cleanText(JSON.parse(body), '') : {}); }
       catch (err) { reject(err); }
     });
+    req.on('error', reject);
   });
+}
+// ---------- RATE LIMITING (stops password guessing and code spamming) ----------
+const rateHits = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of rateHits) if (v.reset < now) rateHits.delete(k); }, 5 * 60 * 1000).unref();
+function clientIp(req) { return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim(); }
+// Returns true (and answers 429) when this key has been used more than `max` times in `windowMs`.
+function tooMany(req, res, bucket, max, windowMs, extra) {
+  const key = bucket + ':' + (extra !== undefined ? extra : clientIp(req));
+  const now = Date.now();
+  let h = rateHits.get(key);
+  if (!h || h.reset < now) { h = { n: 0, reset: now + windowMs }; rateHits.set(key, h); }
+  h.n++;
+  if (h.n > max) {
+    res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': Math.ceil((h.reset - now) / 1000) });
+    res.end(JSON.stringify({ ok: false, message: 'Too many attempts. Please wait a few minutes and try again.' }));
+    return true;
+  }
+  return false;
 }
 function readJSON(file) { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8')); }
 // ---------- IMAGE FILES (kept out of the JSON data) ----------
@@ -994,6 +1031,13 @@ function checkReminderSchedule() {
 }
 
 const server = http.createServer((req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+  // Overall brake on any single address hammering the API (generous: many Nigerians share one mobile-network address).
+  if (req.url.startsWith('/api/') && tooMany(req, res, 'api', 600, 60 * 1000)) return;
 
   // Ignore any ?query=string when matching a page, so returning from
   // Paystack to /dashboard?deposit=success still loads the dashboard.
@@ -1148,9 +1192,12 @@ const server = http.createServer((req, res) => {
   // ================= ADMIN DASHBOARD =================
 
   if (req.method === 'POST' && req.url === '/api/admin/login') {
+    if (tooMany(req, res, 'adminlogin', 10, 15 * 60 * 1000)) return;
     readBody(req).then(({ password }) => {
       const { adminPassword } = getSettings();
-      if (password !== adminPassword) {
+      const a = crypto.createHash('sha256').update(String(password || '')).digest();
+      const b = crypto.createHash('sha256').update(String(adminPassword || '')).digest();
+      if (!crypto.timingSafeEqual(a, b)) {
         return sendJSON(res, { ok: false, message: 'Incorrect password.' });
       }
       const token = createSession('admin', 'admin');
@@ -3045,6 +3092,7 @@ const server = http.createServer((req, res) => {
 
   // ---------- CUSTOMER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/signup') {
+    if (tooMany(req, res, 'signup', 30, 60 * 60 * 1000)) return;
     readBody(req).then(async (formData) => {
       formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
@@ -3070,8 +3118,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/api/verify-signup') {
+    if (tooMany(req, res, 'verify', 60, 15 * 60 * 1000)) return;
     readBody(req).then(async ({ email, code }) => {
       email = normalizeEmail(email);
+      if (tooMany(req, res, 'codeacct', 8, 15 * 60 * 1000, email)) return;
       const pending = pendingSignups[email];
       if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const customers = readJSON('customers.json');
@@ -3091,6 +3141,7 @@ const server = http.createServer((req, res) => {
 
   // ---------- SELLER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/seller-signup') {
+    if (tooMany(req, res, 'sellersignup', 30, 60 * 60 * 1000)) return;
     readBody(req).then(async (formData) => {
       formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
@@ -3114,8 +3165,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/api/verify-seller-signup') {
+    if (tooMany(req, res, 'verify', 60, 15 * 60 * 1000)) return;
     readBody(req).then(async ({ email, code }) => {
       email = normalizeEmail(email);
+      if (tooMany(req, res, 'codeacct', 8, 15 * 60 * 1000, email)) return;
       const pending = pendingSellerSignups[email];
       if (!pending || pending.code !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const sellers = readJSON('sellers.json');
@@ -3139,6 +3192,7 @@ const server = http.createServer((req, res) => {
   // doesn't exist yet; it's ignored if the email already has an account,
   // since we log them into whichever account actually exists.
   if (req.method === 'POST' && req.url === '/api/google-auth') {
+    if (tooMany(req, res, 'google', 60, 15 * 60 * 1000)) return;
     readBody(req).then(async ({ credential, accountType }) => {
       let googleUser;
       try {
@@ -3218,8 +3272,10 @@ const server = http.createServer((req, res) => {
 
   // ---------- LOGIN ----------
   if (req.method === 'POST' && req.url === '/api/login') {
+    if (tooMany(req, res, 'login', 40, 15 * 60 * 1000)) return;
     readBody(req).then(async ({ email, password }) => {
       email = normalizeEmail(email);
+      if (tooMany(req, res, 'loginacct', 10, 15 * 60 * 1000, email)) return;
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
 
@@ -3259,6 +3315,7 @@ const server = http.createServer((req, res) => {
 
   // ---------- FORGOT PASSWORD ----------
   if (req.method === 'POST' && req.url === '/api/request-reset') {
+    if (tooMany(req, res, 'reset', 20, 60 * 60 * 1000)) return;
     readBody(req).then(async ({ email }) => {
       email = normalizeEmail(email);
       const customers = readJSON('customers.json');
@@ -3279,8 +3336,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/api/reset-password') {
+    if (tooMany(req, res, 'resetpw', 30, 60 * 60 * 1000)) return;
     readBody(req).then(async ({ email, code, newPassword }) => {
       email = normalizeEmail(email);
+      if (tooMany(req, res, 'codeacct', 8, 15 * 60 * 1000, email)) return;
       if (resetCodes[email] !== code) return sendJSON(res, { ok: false, message: '❌ Wrong code, try again.' });
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');

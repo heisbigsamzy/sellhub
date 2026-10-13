@@ -85,7 +85,7 @@ function deleteBlob(name) {
 
 function schedule(delay) {
   if (!enabled || !ready || timer) return;
-  timer = setTimeout(() => { timer = null; flush(); }, delay === undefined ? 150 : delay);
+  timer = setTimeout(() => { timer = null; flush(); }, delay === undefined ? 1000 : delay);
   if (timer.unref) timer.unref();
 }
 
