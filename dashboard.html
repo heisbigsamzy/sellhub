@@ -83,12 +83,12 @@
   .p-stock-badge.in{background:var(--mint-100); color:var(--green-900);}
   .p-stock-badge.out{background:#FDEAEA; color:#B4232C;}
   .p-price-old{font-size:12px; color:var(--gray-600); text-decoration:line-through;}
-  .modal-thumb{height:280px; border-radius:var(--radius-sm); margin-bottom:14px; overflow:hidden; background:var(--mint-50); cursor:zoom-in;}
+  .modal-thumb{height:280px; border-radius:var(--radius-sm); margin-bottom:14px; overflow:hidden; background:var(--mint-50); cursor:default;}
   .modal-thumb img{width:100%; height:100%; object-fit:contain; display:block;}
   .gallery{position:relative; height:280px; border-radius:var(--radius-sm); margin-bottom:14px; overflow:hidden; background:var(--mint-50);}
   .gallery-track{display:flex; height:100%; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .gallery-track::-webkit-scrollbar{display:none;}
-  .gallery-slide{flex:0 0 100%; scroll-snap-align:start; height:100%; display:flex; align-items:center; justify-content:center; cursor:zoom-in;}
+  .gallery-slide{flex:0 0 100%; scroll-snap-align:start; height:100%; display:flex; align-items:center; justify-content:center; cursor:default;}
   .gallery-slide img{width:100%; height:100%; object-fit:contain; display:block;}
   .gallery-arrow{position:absolute; top:50%; transform:translateY(-50%); background:rgba(11,15,12,0.45); color:#fff; border:none; width:32px; height:32px; border-radius:50%; font-size:18px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .2s;}
   .gallery-arrow:hover{background:rgba(11,15,12,0.65);}
@@ -512,7 +512,7 @@
     return `
       <div class="gallery" id="productGallery">
         <div class="gallery-track" id="galleryTrack">
-          ${images.map((src, k) => `<div class="gallery-slide" onclick="openLightbox('${src}')"><img src="${src}" ${k > 0 ? 'loading="lazy" decoding="async"' : ''}></div>`).join('')}
+          ${images.map((src, k) => `<div class="gallery-slide"><img src="${src}" ${k > 0 ? 'loading="lazy" decoding="async"' : ''}></div>`).join('')}
         </div>
         ${images.length > 1 ? `
           <button class="gallery-arrow left" onclick="galleryNav(-1)">&#8249;</button>
