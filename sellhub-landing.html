@@ -407,7 +407,7 @@
   }
   @media (max-width:760px){ .founder-card{grid-template-columns:1fr; text-align:center; padding:36px 28px;} }
   .founder-photo{
-    width:168px; height:168px; border-radius:50%; overflow:hidden; flex-shrink:0;
+    position:relative; width:168px; height:168px; border-radius:50%; overflow:hidden; flex-shrink:0;
     background:linear-gradient(150deg,var(--green-400),var(--green-700));
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 24px 50px -18px rgba(11,61,40,0.4); border:4px solid #fff;
@@ -759,13 +759,8 @@
 <section class="founder-section">
   <div class="founder-card reveal">
     <div class="founder-photo">
-      <!--
-        To add your real photo: save it as founder-photo.jpg in the same folder
-        as this file, then replace the line below with:
-        <img src="founder-photo.jpg" alt="Founder of SellHub">
-        Until then, this shows your initials as a placeholder.
-      -->
       <span class="initials">S</span>
+      <img src="/founder-photo.jpg" alt="Samuel Joshua Maiwuya, founder of SellHub" width="168" height="168" style="position:absolute;inset:0" onerror="this.remove()">
     </div>
     <div>
       <p class="founder-quote">"I built SellHub because I watched too many good Nigerian businesses lose sales to DM screenshots and 'is this seller legit?' doubts. Every seller here is verified for a reason — trust shouldn't be a guess."</p>

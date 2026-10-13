@@ -982,6 +982,14 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (req.method === 'GET' && pagePath === '/founder-photo.jpg') {
+    fs.readFile(path.join(__dirname, 'founder-photo.jpg'), (err, img) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
+      res.end(img);
+    });
+    return;
+  }
   if (req.method === 'GET' && pagePath === '/logo.jpg') {
     fs.readFile(path.join(__dirname, 'logo.jpg'), (err, img) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
