@@ -113,7 +113,7 @@ function notifySellerWithdrawal(seller, withdrawal, paid) {
   const bankLine = `${withdrawal.bank || 'your bank'} account ending ${String(withdrawal.accountNumber || '').slice(-4)}`;
   const text = paid
     ? `✅ Your withdrawal of ₦${withdrawal.netAmount.toLocaleString()} has been paid to your ${bankLine}.`
-    : `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} was not approved, so the full amount has been returned to your SellHub wallet. Please check your bank details and try again.`;
+    : `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} was not approved, so the full amount has been returned to your SellHub wallet.` + (withdrawal.rejectReason ? ` Reason: ${withdrawal.rejectReason}` : ' Please check your bank details and try again.');
 
   const phone = seller.whatsappNumber || seller.businessPhone || seller.phone;
   if (phone) {
@@ -1379,7 +1379,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/admin/withdrawals/decide') {
     const session = requireAuth(req, res, 'admin');
     if (!session) return;
-    readBody(req).then(async ({ id, decision }) => {
+    readBody(req).then(async ({ id, decision, reason }) => {
       // Seller payouts are always manual now — SellHub/Paystack never moves
       // money to a seller automatically. Approving here only marks the
       // request as approved so you know to go pay the seller yourself
@@ -1394,14 +1394,18 @@ const server = http.createServer((req, res) => {
       if (withdrawal.status !== 'Pending') return sendJSON(res, { ok: false, message: 'This withdrawal was already decided.' });
 
       if (decision === 'Rejected') {
+        reason = String(reason || '').trim().slice(0, 300);
+        if (reason.length < 3) return sendJSON(res, { ok: false, message: 'Please give the seller a reason for rejecting this withdrawal.' });
         withdrawal.status = 'Rejected';
+        withdrawal.rejectReason = reason;
+        withdrawal.rejectedAt = new Date().toISOString();
         writeJSON('withdrawals.json', withdrawals);
 
         const sellers = readJSON('sellers.json');
         const seller = sellers.find(s => s.email === withdrawal.sellerEmail);
         if (seller) {
           const txn = (seller.transactions || []).find(t => t.type === 'withdrawal' && t.status === 'Pending' && t.amount === withdrawal.amount);
-          if (txn) txn.status = 'Rejected';
+          if (txn) { txn.status = 'Rejected'; txn.reason = reason; }
           // A rejected withdrawal returns the held funds to the seller's
           // wallet (they were deducted up-front when the request was made).
           seller.walletBalance = (seller.walletBalance || 0) + withdrawal.amount;

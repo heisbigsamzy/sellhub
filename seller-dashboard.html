@@ -904,13 +904,15 @@
       const isIn = t.type === 'sale';
       const label = isIn ? `Sale · Order #${t.orderId}` : 'Withdrawal';
       const amountText = (isIn ? '+' : '−') + money(t.amount);
-      const statusChip = t.status === 'Pending' ? `<span class="txn-status Pending">Pending</span>` : '';
+      const statusChip = t.status === 'Pending' ? `<span class="txn-status Pending">Pending</span>` : (t.status === 'Rejected' ? `<span class="txn-status Pending" style="background:#FDEAEA;color:#B4232C;">Rejected</span>` : '');
+      const reasonLine = (t.status === 'Rejected' && t.reason) ? `<div class="txn-date" style="color:#B4232C;">Reason: ${String(t.reason).replace(/[<>&]/g, '')}. The money was returned to your wallet.</div>` : '';
       return `
         <div class="txn-row">
           <div class="txn-ic ${isIn ? 'in' : 'out'}">${isIn ? '↓' : '↑'}</div>
           <div class="txn-main">
             <div class="txn-type">${label}${statusChip}</div>
             <div class="txn-date">${new Date(t.date).toLocaleString('en-NG', {day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit'})}</div>
+            ${reasonLine}
           </div>
           <div class="txn-amount ${isIn ? 'in' : 'out'}">${amountText}</div>
         </div>

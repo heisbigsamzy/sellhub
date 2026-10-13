@@ -578,15 +578,50 @@
           <button class="btn approve" onclick="decideWithdrawal(${w.id}, 'Approved')">Approve (I'll pay manually)</button>
           <button class="btn reject" onclick="decideWithdrawal(${w.id}, 'Rejected')">Reject &amp; Refund</button>
         </div>` : ''}
+        ${w.status === 'Rejected' && (w.rejectReason || w.failReason) ? `<div class="row" style="color:#B4232C;"><span>Reason given to seller</span><span>${esc(w.rejectReason || w.failReason)}</span></div>` : ''}
         ${w.status === 'Approved' ? `<div class="row" style="color:var(--gray-600);">Approved — paid manually (SellHub did not send this via Paystack).</div>` : ''}
       </div>
     `).join('');
   }
 
+  const REJECT_REASONS = [
+    'The account name does not match your verified identity',
+    'Your bank details are incorrect or could not be verified',
+    'Your account is under review. Please contact support',
+    'This request looks like it breaks our seller rules',
+    'There is an open dispute on one of your orders',
+    'Other (write your own reason)'
+  ];
+  function askRejectReason(){
+    return new Promise(resolve => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;background:rgba(11,15,12,.55);z-index:500;display:flex;align-items:center;justify-content:center;padding:18px;';
+      wrap.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:22px;font-family:inherit;">
+        <h3 style="margin:0 0 6px;font-size:18px;">Reject this withdrawal</h3>
+        <p style="margin:0 0 12px;font-size:13px;color:#5a6b61;">The seller gets the money back in their wallet and receives this reason by WhatsApp and email.</p>
+        <select id="rjSel" style="width:100%;padding:11px;border-radius:10px;border:1.5px solid #d5ddd8;font-size:15px;margin-bottom:10px;">${REJECT_REASONS.map((r, i) => `<option value="${i}">${r}</option>`).join('')}</select>
+        <textarea id="rjTxt" rows="3" maxlength="300" placeholder="Add more detail for the seller (optional for the listed reasons)" style="width:100%;padding:11px;border-radius:10px;border:1.5px solid #d5ddd8;font-size:15px;font-family:inherit;resize:vertical;"></textarea>
+        <div id="rjErr" style="color:#B4232C;font-size:13px;min-height:18px;margin-top:4px;"></div>
+        <div style="display:flex;gap:10px;margin-top:8px;"><button id="rjNo" class="btn" style="flex:1;">Cancel</button><button id="rjYes" class="btn reject" style="flex:1;">Reject &amp; refund</button></div></div>`;
+      document.body.appendChild(wrap);
+      const done = v => { wrap.remove(); resolve(v); };
+      wrap.querySelector('#rjNo').onclick = () => done(null);
+      wrap.querySelector('#rjYes').onclick = () => {
+        const i = Number(wrap.querySelector('#rjSel').value), extra = wrap.querySelector('#rjTxt').value.trim();
+        const isOther = i === REJECT_REASONS.length - 1;
+        if (isOther && extra.length < 3) { wrap.querySelector('#rjErr').textContent = 'Please write the reason.'; return; }
+        done(isOther ? extra : REJECT_REASONS[i] + (extra ? '. ' + extra : ''));
+      };
+    });
+  }
   async function decideWithdrawal(id, decision){
-    if (decision === 'Rejected' && !confirm('Reject this withdrawal and refund the seller wallet?')) return;
+    let reason = '';
+    if (decision === 'Rejected') {
+      reason = await askRejectReason();
+      if (reason === null) return;
+    }
     if (decision === 'Approved' && !confirm('This marks the request as approved and paid, but does NOT send any money. Only continue once you have actually transferred ' + 'the net payout to the seller\'s bank account yourself. Continue?')) return;
-    const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision }) });
+    const res = await authedFetch('/api/admin/withdrawals/decide', { method: 'POST', body: JSON.stringify({ id, decision, reason }) });
     const r = await res.json();
     alert(r.message);
     loadWithdrawals();
