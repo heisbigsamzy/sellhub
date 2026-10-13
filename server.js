@@ -1198,10 +1198,28 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/admin/login') {
     if (tooMany(req, res, 'adminlogin', 10, 15 * 60 * 1000)) return;
     readBody(req).then(({ password }) => {
-      const { adminPassword } = getSettings();
-      const a = crypto.createHash('sha256').update(String(password || '')).digest();
-      const b = crypto.createHash('sha256').update(String(adminPassword || '')).digest();
-      if (!crypto.timingSafeEqual(a, b)) {
+      const settings = getSettings();
+      const pw = String(password || '');
+      let ok = false;
+      if (settings.adminPasswordHash) {
+        try {
+          const [salt, hash] = String(settings.adminPasswordHash).split(':');
+          const test = crypto.scryptSync(pw, salt, 64);
+          ok = crypto.timingSafeEqual(test, Buffer.from(hash, 'hex'));
+        } catch (e) { ok = false; }
+      } else if (settings.adminPassword) {
+        const a = crypto.createHash('sha256').update(pw).digest();
+        const b = crypto.createHash('sha256').update(String(settings.adminPassword)).digest();
+        ok = crypto.timingSafeEqual(a, b);
+        if (ok) {
+          // First successful login: scramble the stored password and remove the plain one.
+          const salt = crypto.randomBytes(16).toString('hex');
+          settings.adminPasswordHash = salt + ':' + crypto.scryptSync(pw, salt, 64).toString('hex');
+          delete settings.adminPassword;
+          writeJSON('settings.json', settings);
+        }
+      }
+      if (!ok) {
         return sendJSON(res, { ok: false, message: 'Incorrect password.' });
       }
       const token = createSession('admin', 'admin');

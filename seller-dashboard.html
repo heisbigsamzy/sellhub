@@ -903,7 +903,8 @@
     txnList.innerHTML = '<h3 class="txn-heading">Recent activity</h3>' + result.transactions.map(t => {
       const isIn = t.type === 'sale';
       const label = isIn ? `Sale · Order #${t.orderId}` : 'Withdrawal';
-      const amountText = (isIn ? '+' : '−') + money(t.amount);
+      const rej = t.status === 'Rejected';
+      const amountText = rej ? money(t.amount) : (isIn ? '+' : '−') + money(t.amount);
       const statusChip = t.status === 'Pending' ? `<span class="txn-status Pending">Pending</span>` : (t.status === 'Rejected' ? `<span class="txn-status Pending" style="background:#FDEAEA;color:#B4232C;">Rejected</span>` : '');
       const reasonLine = (t.status === 'Rejected' && t.reason) ? `<div class="txn-date" style="color:#B4232C;">Reason: ${String(t.reason).replace(/[<>&]/g, '')}. The money was returned to your wallet.</div>` : '';
       return `
@@ -914,7 +915,7 @@
             <div class="txn-date">${new Date(t.date).toLocaleString('en-NG', {day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit'})}</div>
             ${reasonLine}
           </div>
-          <div class="txn-amount ${isIn ? 'in' : 'out'}">${amountText}</div>
+          <div class="txn-amount ${isIn ? 'in' : 'out'}"${rej ? ' style="color:#888;text-decoration:line-through;"' : ''}>${amountText}</div>
         </div>
       `;
     }).join('');
