@@ -39,6 +39,25 @@
     '<a class="shc-b wa" target="_blank" rel="noopener" href="https://wa.me/' + WA + '?text=' + msg + '">💬 Chat on WhatsApp <small style="font-weight:700;opacity:.7;margin-left:auto">Fastest</small></a>' +
     '<a class="shc-b em" href="mailto:' + EMAIL + '?subject=SellHub%20support">✉️ ' + EMAIL + '</a>' +
     '<a class="shc-b hp" href="/help">❓ Help Center &amp; FAQs</a>';
+
+  // Install as an app (Android/Chrome shows a prompt; iPhone gets simple steps).
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(function () {}); }
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (!standalone) {
+    var inst = document.createElement('a');
+    inst.className = 'shc-b hp'; inst.href = '#'; inst.id = 'shc-install'; inst.style.display = 'none';
+    inst.textContent = '📲 Install SellHub app';
+    panel.appendChild(inst);
+    var deferred = null;
+    var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (ios) { inst.style.display = 'flex'; }
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; inst.style.display = 'flex'; });
+    inst.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (deferred) { deferred.prompt(); deferred = null; inst.style.display = 'none'; }
+      else if (ios) { alert('To install: tap the Share button in Safari, then "Add to Home Screen".'); }
+    });
+  }
   function toggle(open) { var o = open === undefined ? !panel.classList.contains('open') : open; panel.classList.toggle('open', o); tab.setAttribute('aria-expanded', String(o)); tab.classList.remove('pulse'); }
   tab.addEventListener('click', function () { toggle(); });
   panel.querySelector('#shc-x').addEventListener('click', function () { toggle(false); });

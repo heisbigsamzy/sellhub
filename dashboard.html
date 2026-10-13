@@ -292,9 +292,16 @@
     .modal{transform:translateY(24px) !important;}
     .modal-overlay.active .modal{transform:none !important;}
   }
+  .filter-row{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;}
+  .filter-row select,.filter-row input{width:100%; min-width:0; padding:10px 12px; border-radius:12px; border:1.5px solid var(--gray-300); background:#fff; font-size:16px; font-family:'Manrope',sans-serif; color:var(--ink);}
+  @media (min-width:700px){.filter-row{grid-template-columns:1.3fr 1.3fr 1fr 1fr; max-width:760px;}}
 </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
 <link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0F7A4A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SellHub">
 </head>
 <body>
 
@@ -321,6 +328,12 @@
 
   <div class="panel active" id="panel-browse">
     <input id="searchInput" type="text" placeholder="Search products or stores..." oninput="renderBrowse()" style="width:100%; padding:12px 16px; margin-bottom:16px; border-radius:100px; border:1.5px solid var(--gray-300); font-size:16px; font-family:'Manrope',sans-serif; outline:none;">
+    <div class="filter-row">
+      <select id="sortSel" onchange="renderBrowse()" aria-label="Sort"><option value="">Sort: Recommended</option><option value="new">Newest first</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select>
+      <select id="stateSel" onchange="renderBrowse()" aria-label="State"><option value="">All states</option></select>
+      <input id="minPrice" type="number" inputmode="numeric" placeholder="Min ₦" oninput="renderBrowse()">
+      <input id="maxPrice" type="number" inputmode="numeric" placeholder="Max ₦" oninput="renderBrowse()">
+    </div>
     <div class="store-strip" id="categoryStrip" style="flex-wrap:wrap;"></div>
     <div class="grid" id="productGrid"></div>
   </div>
@@ -646,13 +659,27 @@
   function renderBrowse(){
     const grid = document.getElementById('productGrid');
     const query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    const stateSel = document.getElementById('stateSel');
+    if (stateSel && stateSel.options.length <= 1) {
+      [...new Set(products.map(p => (p.sellerState || '').trim()).filter(Boolean))].sort().forEach(st => { const o = document.createElement('option'); o.value = st; o.textContent = st; stateSel.appendChild(o); });
+    }
+    const stateVal = stateSel ? stateSel.value : '';
+    const minP = Number(document.getElementById('minPrice')?.value) || 0;
+    const maxP = Number(document.getElementById('maxPrice')?.value) || 0;
+    const sortVal = document.getElementById('sortSel')?.value || '';
+    const priceOf = p => Number(p.discountPrice || p.price) || 0;
     let filtered = products.filter(p => {
       if (query && !p.name.toLowerCase().includes(query) && !p.storeName.toLowerCase().includes(query)) return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
+      if (stateVal && (p.sellerState || '').trim() !== stateVal) return false;
+      if (minP && priceOf(p) < minP) return false;
+      if (maxP && priceOf(p) > maxP) return false;
       return true;
     });
-    // Mix sellers together so one busy seller never fills the top of the page.
-    filtered = mixProducts(filtered);
+    if (sortVal === 'low') filtered.sort((a, b) => priceOf(a) - priceOf(b));
+    else if (sortVal === 'high') filtered.sort((a, b) => priceOf(b) - priceOf(a));
+    else if (sortVal === 'new') filtered.sort((a, b) => (b.id || 0) - (a.id || 0));
+    else filtered = mixProducts(filtered); // Mix sellers together so one busy seller never fills the top of the page.
 
     if (filtered.length === 0) {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><h3>No products found</h3><p>Try a different search term or category.</p></div>`;
@@ -1239,6 +1266,6 @@
     pollNotifBadge();
   }, 15000);
 </script>
-<script src="/support-widget.js?v=2" defer></script>
+<script src="/support-widget.js?v=3" defer></script>
 </body>
 </html>

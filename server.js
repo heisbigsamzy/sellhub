@@ -636,6 +636,22 @@ function notifySellerNewOrder(order) {
 // If an order is cancelled after sellers were already paid, this reverses
 // their share and refunds the customer, so money doesn't end up stuck with
 // a seller for an order that never completed.
+// Put the quantities of a cancelled order back into the sellers' stock (only once per order).
+function restoreStockForOrder(order) {
+  if (order.stockRestored) return;
+  const products = readJSON('products.json');
+  let changed = false;
+  (order.items || []).forEach(item => {
+    const p = products.find(x => x.id === item.id);
+    if (p && typeof p.stock === 'number') {
+      p.stock += itemQty(item);
+      p.status = 'In Stock';
+      changed = true;
+    }
+  });
+  if (changed) writeJSON('products.json', products);
+  order.stockRestored = true;
+}
 function reverseSellerCreditsAndRefundCustomer(order) {
   const sellers = readJSON('sellers.json');
   const shareBySeller = {};
@@ -728,10 +744,28 @@ function externalizeBlobs(node) {
 function writeJSON(file, data) {
   externalizeBlobs(data);
   const text = JSON.stringify(data, null, 2);
-  fs.writeFileSync(path.join(DATA_DIR, file), text);
+  // Write to a temp file first, then swap it in, so a crash mid-save can never leave a half-written file.
+  const target = path.join(DATA_DIR, file);
+  const tmp = target + '.tmp';
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, target);
   // Free, zero-maintenance safety net — see dataBackup.js. No-ops until an
   // Upstash database is connected; never blocks or throws into the caller.
   backupFile(file, text);
+}
+
+// Keeps a copy of every data file once a day (last 7 days) inside DATA_DIR/backups.
+function snapshotData() {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const dir = path.join(DATA_DIR, 'backups', day);
+    if (fs.existsSync(dir)) return;
+    fs.mkdirSync(dir, { recursive: true });
+    DATA_FILES.forEach(f => { try { fs.copyFileSync(path.join(DATA_DIR, f), path.join(dir, f)); } catch (e) {} });
+    const root = path.join(DATA_DIR, 'backups');
+    fs.readdirSync(root).sort().slice(0, -7).forEach(d => { try { fs.rmSync(path.join(root, d), { recursive: true, force: true }); } catch (e) {} });
+    console.log('Daily data snapshot saved:', day);
+  } catch (e) { console.warn('Snapshot failed:', e.message); }
 }
 function serveFile(res, fileName, extraHeaders) {
   fs.readFile(fileName, (err, content) => {
@@ -987,6 +1021,15 @@ const server = http.createServer((req, res) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
       res.end(img);
+    });
+    return;
+  }
+  if (req.method === 'GET' && (pagePath === '/manifest.webmanifest' || pagePath === '/sw.js' || pagePath === '/offline.html')) {
+    const types = { '/manifest.webmanifest': 'application/manifest+json', '/sw.js': 'application/javascript', '/offline.html': 'text/html' };
+    fs.readFile(path.join(__dirname, 'brand', pagePath.slice(1)), (err, buf) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': types[pagePath], 'Cache-Control': pagePath === '/sw.js' ? 'no-cache' : 'public, max-age=3600', 'Service-Worker-Allowed': '/' });
+      res.end(buf);
     });
     return;
   }
@@ -1574,6 +1617,18 @@ const server = http.createServer((req, res) => {
     if (reminderRunning) return sendJSON(res, { ok: false, message: 'A reminder run is already in progress.' });
     runCustomerReminders().catch(e => console.log('Reminder error:', e.message));
     sendJSON(res, { ok: true, message: 'Sending now to every customer who has not unsubscribed. You will get a WhatsApp summary when it is done.' });
+    return;
+  }
+
+  // ---------- ADMIN: DOWNLOAD A BACKUP OF ALL DATA ----------
+  if (req.method === 'GET' && req.url === '/api/admin/backup') {
+    const session = requireAuth(req, res, 'admin');
+    if (!session) return;
+    const bundle = { createdAt: new Date().toISOString(), files: {} };
+    DATA_FILES.forEach(f => { try { bundle.files[f] = readJSON(f); } catch (e) {} });
+    const body = JSON.stringify(bundle);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="sellhub-backup-${new Date().toISOString().slice(0, 10)}.json"`, 'Cache-Control': 'no-store' });
+    res.end(body);
     return;
   }
 
@@ -2661,6 +2716,7 @@ const server = http.createServer((req, res) => {
 
       order.status = 'Cancelled';
       order.cancelReason = reason || '';
+      restoreStockForOrder(order);
       writeJSON('orders.json', orders);
       reverseSellerCreditsAndRefundCustomer(order);
       notifyOrderStatus(order, 'Cancelled');
@@ -3262,5 +3318,6 @@ restoreData
   }, CODE_STATE_FILES))
   .finally(() => {
     server.listen(PORT, () => console.log(`Running at http://localhost:${PORT}`));
+    setTimeout(snapshotData, 30 * 1000).unref(); setInterval(snapshotData, 6 * 60 * 60 * 1000).unref();
     if (REMINDERS_ON) { setTimeout(checkReminderSchedule, 60 * 1000).unref(); setInterval(checkReminderSchedule, 10 * 60 * 1000).unref(); }
   });

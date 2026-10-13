@@ -169,6 +169,10 @@
 </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
 <link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0F7A4A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SellHub">
 </head>
 <body>
 
@@ -202,6 +206,11 @@
       <div class="panel active" id="panel-overview">
         <h1 class="page-title">Overview</h1>
         <div class="stat-row" id="statRow"></div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">💾 Backup your data</div>
+          <div class="card-sub" style="margin:6px 0 10px;">Downloads one file with all customers, sellers, orders and wallet balances. Keep it somewhere safe and private. The server also saves its own copy every day.</div>
+          <div class="actions"><button class="btn approve" onclick="downloadBackup()">Download backup now</button></div>
+        </div>
         <div class="card" style="margin-top:16px;">
           <div class="card-title">⚡ Speed up product photos</div>
           <div class="card-sub" style="margin:6px 0 10px;">Makes small copies of older product photos so customers see them faster. Run it once; new products do this automatically.</div>
@@ -946,6 +955,13 @@
     const r = await (await authedFetch('/api/admin/reminders/send-now', { method: 'POST', body: '{}' })).json();
     alert(r.message || 'Done');
     loadReminders();
+  }
+  async function downloadBackup(){
+    const r = await authedFetch('/api/admin/backup');
+    if (!r.ok) return alert('Could not create the backup.');
+    const blob = await r.blob(); const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'sellhub-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
   }
   // Makes small copies of every older product's photos, in this browser, and saves them.
   async function backfillThumbs(){
