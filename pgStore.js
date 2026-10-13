@@ -18,6 +18,11 @@ let lastError = '';
 const pendingDocs = new Map();   // name -> latest JSON text
 const pendingBlobs = new Map();  // name -> { buf, mime }
 const pendingDeletes = new Set();
+const ROW_TABLES = ['products', 'orders'];   // one database row per product / per order
+const rowState = {};                         // table -> { known: Map(id -> {seq, text}), maxSeq }
+const pendingRows = {};                      // table -> Map(id -> {seq, text} | null(delete))
+ROW_TABLES.forEach(t => { rowState[t] = { known: new Map(), maxSeq: 0 }; pendingRows[t] = new Map(); });
+function pendingRowCount() { return ROW_TABLES.reduce((n, t) => n + pendingRows[t].size, 0); }
 let flushing = false;
 let timer = null;
 
@@ -41,6 +46,9 @@ async function init() {
     }
     await pool.query('CREATE TABLE IF NOT EXISTS kv (name text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())');
     await pool.query('CREATE TABLE IF NOT EXISTS blobs (name text PRIMARY KEY, mime text, data bytea NOT NULL, created_at timestamptz NOT NULL DEFAULT now())');
+    for (const t of ROW_TABLES) {
+      await pool.query('CREATE TABLE IF NOT EXISTS ' + t + ' (id text PRIMARY KEY, seq bigint NOT NULL, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())');
+    }
     ready = true; lastOkAt = new Date().toISOString(); lastError = '';
     log('PostgreSQL connected — your data is now saved in the database too.');
     schedule();
@@ -56,6 +64,48 @@ async function init() {
 async function loadAll() {
   const r = await pool.query('SELECT name, data FROM kv');
   return r.rows;
+}
+
+// Reads every row of a table (oldest first) and remembers what is stored, so later saves send only the changes.
+async function loadRows(table) {
+  if (!ROW_TABLES.includes(table)) throw new Error('bad table');
+  const r = await pool.query('SELECT id, seq, data FROM ' + table + ' ORDER BY seq');
+  const st = rowState[table]; st.known = new Map(); st.maxSeq = 0;
+  const out = [];
+  for (const row of r.rows) {
+    const seq = Number(row.seq);
+    st.known.set(String(row.id), { seq, text: JSON.stringify(row.data) });
+    if (seq > st.maxSeq) st.maxSeq = seq;
+    out.push(row.data);
+  }
+  return out;
+}
+
+// Called whenever the full list is saved. Works out which products/orders are new, changed or removed
+// and queues only those. Returns false if the list can't be stored row-by-row (missing/duplicate ids).
+function saveRows(table, arr) {
+  if (!enabled || !ROW_TABLES.includes(table) || !Array.isArray(arr)) return false;
+  const st = rowState[table], pend = pendingRows[table];
+  const seen = new Set(), texts = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object' || item.id === undefined || item.id === null || item.id === '') return false;
+    const id = String(item.id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    texts.push([id, JSON.stringify(item)]);
+  }
+  for (const [id, text] of texts) {
+    const k = st.known.get(id);
+    if (k && k.text === text) continue;
+    const seq = k ? k.seq : ++st.maxSeq;
+    st.known.set(id, { seq, text });
+    pend.set(id, { seq, text });
+  }
+  for (const id of Array.from(st.known.keys())) {
+    if (!seen.has(id)) { st.known.delete(id); pend.set(id, null); }
+  }
+  schedule();
+  return true;
 }
 
 async function getBlob(name) {
@@ -94,7 +144,21 @@ async function flush() {
   if (!enabled || !ready || flushing) return;
   flushing = true;
   try {
-    while (pendingDocs.size || pendingBlobs.size || pendingDeletes.size) {
+    while (pendingDocs.size || pendingBlobs.size || pendingDeletes.size || pendingRowCount()) {
+      for (const t of ROW_TABLES) {
+        const pend = pendingRows[t];
+        if (!pend.size) continue;
+        const batch = Array.from(pend.entries());
+        const ups = batch.filter(([, v]) => v), dels = batch.filter(([, v]) => !v).map(([id]) => id);
+        for (let i = 0; i < ups.length; i += 300) {
+          const part = ups.slice(i, i + 300);
+          await pool.query('INSERT INTO ' + t + ' (id, seq, data, updated_at) SELECT a, b, c::jsonb, now() FROM unnest($1::text[], $2::bigint[], $3::text[]) AS x(a, b, c) ON CONFLICT (id) DO UPDATE SET seq = EXCLUDED.seq, data = EXCLUDED.data, updated_at = now()',
+            [part.map(([id]) => id), part.map(([, v]) => v.seq), part.map(([, v]) => v.text)]);
+        }
+        if (dels.length) await pool.query('DELETE FROM ' + t + ' WHERE id = ANY($1::text[])', [dels]);
+        // only forget what was actually sent (newer changes to the same id stay queued)
+        for (const [id, v] of batch) { if (pend.get(id) === v) pend.delete(id); }
+      }
       for (const [name, text] of Array.from(pendingDocs.entries())) {
         await pool.query(
           'INSERT INTO kv (name, data, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
@@ -128,7 +192,7 @@ async function flushNow(maxMs) {
   if (!enabled || !ready) return;
   const stop = Date.now() + (maxMs || 6000);
   if (timer) { clearTimeout(timer); timer = null; }
-  while ((pendingDocs.size || pendingBlobs.size || pendingDeletes.size || flushing) && Date.now() < stop) {
+  while ((pendingDocs.size || pendingBlobs.size || pendingDeletes.size || pendingRowCount() || flushing) && Date.now() < stop) {
     if (!flushing) await flush();
     else await new Promise(r => setTimeout(r, 100));
   }
@@ -156,9 +220,9 @@ async function syncBlobsFromDisk(dir, fs, path, mimeOf) {
 
 function status() {
   return {
-    enabled, connected: ready, waiting: pendingDocs.size + pendingBlobs.size + pendingDeletes.size,
+    enabled, connected: ready, waiting: pendingDocs.size + pendingBlobs.size + pendingDeletes.size + pendingRowCount(),
     lastOkAt, lastError
   };
 }
 
-module.exports = { enabled, init, loadAll, getBlob, save, saveBlob, deleteBlob, flush, flushNow, syncBlobsFromDisk, status, _setPool: p => { pool = p; } };
+module.exports = { enabled, init, loadAll, loadRows, saveRows, getBlob, save, saveBlob, deleteBlob, flush, flushNow, syncBlobsFromDisk, status, _setPool: p => { pool = p; } };

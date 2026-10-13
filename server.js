@@ -9,7 +9,16 @@ const { sendWhatsApp } = require('./whatsapp');
 const { backupFile: upstashBackup, restoreAllFiles } = require('./dataBackup');
 const pgstore = require('./pgStore');
 // Every save goes to the optional Upstash copy and the optional PostgreSQL database (each does nothing until configured).
-function backupFile(name, text) { upstashBackup(name, text); pgstore.save(name, text); }
+// products.json / orders.json are stored in the database ONE ROW PER ITEM once migrated (rowMode),
+// so saving one order touches one row instead of rewriting the whole list.
+const ROW_FILES = { 'products.json': 'products', 'orders.json': 'orders' };
+const rowMode = { products: false, orders: false };
+function backupFile(name, text, data) {
+  upstashBackup(name, text);
+  const table = ROW_FILES[name];
+  if (table && rowMode[table] && data && pgstore.saveRows(table, data)) return;
+  pgstore.save(name, text);
+}
 
 // ---------- DATA STORAGE ----------
 // Render's free tier has no permanent disk: every time the service redeploys,
@@ -793,7 +802,7 @@ function writeJSON(file, data) {
   fs.renameSync(tmp, target);
   // Free, zero-maintenance safety net — see dataBackup.js. No-ops until an
   // Upstash database is connected; never blocks or throws into the caller.
-  backupFile(file, text);
+  backupFile(file, text, data);
 }
 
 // Keeps a copy of every data file once a day (last 7 days) inside DATA_DIR/backups.
@@ -3416,6 +3425,35 @@ async function bootFromDatabase() {
     } catch (e) {}
     fs.writeFileSync(file, text);
     restored++;
+  }
+  // Products and orders live in their own tables, one row each. Migrate on first run, load from them afterwards.
+  const marker = (rows.find(r => r.name === 'rows-migrated.json') || {}).data || {};
+  for (const [fileName, table] of Object.entries(ROW_FILES)) {
+    const file = path.join(DATA_DIR, fileName);
+    if (marker[table]) {
+      const list = await pgstore.loadRows(table);
+      const text = JSON.stringify(list, null, 2);
+      try {
+        if (fs.existsSync(file) && fs.readFileSync(file, 'utf-8') !== text) {
+          fs.mkdirSync(snap, { recursive: true });
+          fs.copyFileSync(file, path.join(snap, fileName));
+        }
+      } catch (e) {}
+      fs.writeFileSync(file, text);
+      rowMode[table] = true;
+      console.log(`🗄️  ${table}: loaded ${list.length} rows from the ${table} table.`);
+    } else {
+      let list;
+      try { list = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { continue; }   // nothing local to migrate
+      await pgstore.loadRows(table);
+      if (!pgstore.saveRows(table, list)) { console.warn(`⚠️ ${table}: items have missing/duplicate ids, keeping the old storage for it.`); continue; }
+      await pgstore.flush();
+      const check = await pgstore.loadRows(table);
+      if (check.length !== list.length) { console.error(`⚠️ ${table}: migration check failed (${check.length}/${list.length}), keeping the old storage for it.`); continue; }
+      marker[table] = true; rowMode[table] = true;
+      pgstore.save('rows-migrated.json', JSON.stringify(marker));
+      console.log(`🗄️  ${table}: moved ${list.length} items into their own table.`);
+    }
   }
   // First run against an empty database: upload what this server currently holds.
   let uploaded = 0;
