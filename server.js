@@ -1030,6 +1030,10 @@ function checkReminderSchedule() {
   runCustomerReminders().catch(e => console.log('Reminder error:', e.message));
 }
 
+// Only these fields are accepted from a signup form (so nobody can sneak in fields like a wallet balance).
+function pickFields(src, keys) { const out = {}; keys.forEach(k => { if (typeof src[k] === 'string') out[k] = src[k].trim(); }); return out; }
+const okLogo = v => typeof v === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(v) && v.length < 900000;
+
 const server = http.createServer((req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -3097,7 +3101,8 @@ const server = http.createServer((req, res) => {
   // ---------- CUSTOMER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/signup') {
     if (tooMany(req, res, 'signup', 30, 60 * 60 * 1000)) return;
-    readBody(req).then(async (formData) => {
+    readBody(req).then(async (raw) => {
+      const formData = pickFields(raw, ['fullName', 'email', 'phone', 'password']);
       formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
@@ -3146,7 +3151,9 @@ const server = http.createServer((req, res) => {
   // ---------- SELLER SIGNUP ----------
   if (req.method === 'POST' && req.url === '/api/seller-signup') {
     if (tooMany(req, res, 'sellersignup', 30, 60 * 60 * 1000)) return;
-    readBody(req).then(async (formData) => {
+    readBody(req).then(async (raw) => {
+      const formData = pickFields(raw, ['fullName', 'businessName', 'email', 'phone', 'password']);
+      if (okLogo(raw.logoImage)) formData.logoImage = raw.logoImage;
       formData.email = normalizeEmail(formData.email);
       const customers = readJSON('customers.json');
       const sellers = readJSON('sellers.json');
