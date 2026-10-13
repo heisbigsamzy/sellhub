@@ -973,6 +973,15 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (req.method === 'GET' && /^\/(icon-(32|180|192|512)\.png|sellhub-logo-(transparent|on-dark|white)\.png|icon\.svg)$/.test(pagePath)) {
+    const f = path.join(__dirname, 'brand', pagePath.slice(1));
+    fs.readFile(f, (err, img) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': pagePath.endsWith('.svg') ? 'image/svg+xml' : 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.end(img);
+    });
+    return;
+  }
   if (req.method === 'GET' && pagePath === '/logo.jpg') {
     fs.readFile(path.join(__dirname, 'logo.jpg'), (err, img) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
