@@ -72,7 +72,7 @@ if (RESEND_API_KEY && !RESEND_FROM) {
 
 // Wraps every email in a branded layout with the SellHub logo on top. The logo
 // is served by this app at /logo.jpg (set PUBLIC_URL if the site address changes).
-const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://sellhub-nlbd.onrender.com').replace(/\/+$/, '');
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://sellhubmarket.xyz').replace(/\/+$/, '');
 function brandedHtml(inner) {
   return `<div style="background:#f4f6f5;padding:24px 12px;font-family:Arial,sans-serif">` +
     `<div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;color:#1a1a1a">` +
