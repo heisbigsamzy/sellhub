@@ -132,6 +132,13 @@
     .p-actions{gap:5px; margin-top:8px;}
     .p-btn{padding:8px 2px; font-size:11px;}
   }
+  /* No accidental zoom: stop double-tap zoom, no scale-in animation, lock page scroll behind a product */
+  html,body{touch-action:manipulation; -webkit-text-size-adjust:100%;}
+  body.modal-open{overflow:hidden;}
+  @media (max-width:640px){
+    .modal{transform:translateY(24px) !important;}
+    .modal-overlay.active .modal{transform:none !important;}
+  }
 </style>
 </head>
 <body>
@@ -187,8 +194,8 @@
     if (!avg) return '';
     return '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg));
   }
-  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
-  function openModal(id){ document.getElementById(id).classList.add('active'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); if(!document.querySelector('.modal-overlay.active')) document.body.classList.remove('modal-open'); }
+  function openModal(id){ document.getElementById(id).classList.add('active'); document.body.classList.add('modal-open'); }
   function openLightbox(src){
     document.getElementById('lightboxImg').src = src;
     document.getElementById('lightboxOverlay').classList.add('active');
