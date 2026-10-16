@@ -1111,6 +1111,14 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (req.method === 'GET' && pagePath === '/ui.css') {
+    fs.readFile(path.join(__dirname, 'ui.css'), (err, css) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(css);
+    });
+    return;
+  }
   if (req.method === 'GET' && pagePath === '/support-widget.js') {
     fs.readFile(path.join(__dirname, 'support-widget.js'), (err, js) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }

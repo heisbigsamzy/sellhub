@@ -1,0 +1,63 @@
+/* SellHub shared look: loaded last on every non-admin page so it matches the landing page. */
+:root{--sh-ink:#0C1F17;--sh-g9:#0B3D28;--sh-g7:#0F7A4A;--sh-g6:#149A5C;--sh-g4:#3FC17F;--sh-lime:#C8F169;--sh-mint:#EAF7EF;--sh-paper:#F7FBF8;--sh-line:#DCEBE2}
+body{-webkit-font-smoothing:antialiased}
+h1,h2,h3{letter-spacing:-.03em}
+
+/* ---------- app header (dashboards, store pages, info pages) ---------- */
+header{background:var(--sh-g9)!important;border-bottom:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+header .logo,header .logo a{color:#fff!important}
+header .greeting{color:#CFEBDB!important}
+header .greeting b{color:#fff!important}
+header .back-link{color:#CFEBDB!important}
+header .logout-btn,header .nav-actions .logout-btn{background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.22)!important;color:#fff!important}
+header .logout-btn:hover{background:rgba(255,255,255,.2)!important}
+header .btn-ghost{color:#fff!important;border-color:rgba(255,255,255,.3)!important;background:transparent!important}
+.free-banner{background:var(--sh-lime)!important;color:var(--sh-g9)!important;border-bottom:0!important}
+
+/* ---------- page backdrop ---------- */
+body:not(.auth){background:var(--sh-paper)!important}
+
+/* ---------- sign in / sign up pages ---------- */
+body.auth{background:radial-gradient(800px 520px at 85% -5%,#157a4c 0,rgba(21,122,76,0) 70%),radial-gradient(700px 500px at 0% 105%,#0e5636 0,rgba(14,86,54,0) 70%),var(--sh-g9)!important;align-items:flex-start;padding:34px 16px 48px!important}
+@media(min-height:760px){body.auth{align-items:center}}
+body.auth .card{max-width:440px!important;border:0!important;border-radius:30px!important;padding:32px 26px 28px!important;box-shadow:0 40px 80px -30px rgba(0,0,0,.65)!important}
+body.auth .logo{font-weight:700!important;font-size:19px!important;letter-spacing:-.02em;margin-bottom:22px!important}
+body.auth .logo-mark{width:34px!important;height:34px!important;border-radius:10px!important;box-shadow:0 8px 16px -8px rgba(15,122,74,.5)!important}
+body.auth h1{font-size:28px!important;font-weight:700!important;letter-spacing:-.035em!important;line-height:1.08!important;margin:0 0 20px!important}
+body.auth input,body.auth select,body.auth textarea{height:52px;padding:0 16px!important;border:1.5px solid var(--sh-line)!important;border-radius:14px!important;background:#F9FCFA!important;font-size:16px!important;color:var(--sh-ink)}
+body.auth input:focus,body.auth select:focus{border-color:var(--sh-g6)!important;background:#fff!important;box-shadow:0 0 0 4px rgba(20,154,92,.14)}
+body.auth button:not(.resend):not(#ppBtn):not([type=button]){height:54px;padding:0 20px!important;background:var(--sh-g9)!important;color:#fff!important;border-radius:999px!important;font-weight:600!important;font-size:16px!important;letter-spacing:0;box-shadow:0 16px 28px -14px rgba(11,61,40,.8)!important}
+body.auth button:not(.resend):not(#ppBtn):not([type=button]):hover{background:#0F5535!important}
+body.auth a{color:var(--sh-g7)!important;font-weight:600}
+body.auth p.foot{font-size:14px!important}
+body.auth #msg,body.auth #msg2{font-weight:600}
+body.auth ::placeholder{color:#8DA096}
+
+/* ---------- info pages (about, contact, help, terms, privacy) ---------- */
+.box{border-radius:28px!important;border:1px solid var(--sh-line)!important;box-shadow:0 24px 50px -30px rgba(11,61,40,.35)!important}
+
+/* ---------- dashboards ---------- */
+.tabs{border-radius:999px!important;border-color:var(--sh-line)!important}
+.tab.active{background:var(--sh-g9)!important;box-shadow:0 10px 20px -10px rgba(11,61,40,.7)!important}
+.p-btn.primary,.checkout-btn{background:var(--sh-g9)!important}
+.p-card,.cart-row,.card,.stat,.box{border-color:var(--sh-line)}
+body.auth #phoneCountryWrap select{margin-top:0!important;height:52px!important;padding:0 30px 0 14px!important;max-width:128px!important;font-size:15px!important}
+body.auth #phone{height:52px;margin-top:0!important}
+
+/* ---------- small-screen fixes (Poppins is wider than the old font) ---------- */
+header .logo-mark{background:#fff!important;box-shadow:none!important;width:32px!important;height:32px!important;border-radius:9px!important;overflow:hidden}
+header .logo-mark::after{content:none!important}
+header .logo-mark img{width:100%!important;height:100%!important;object-fit:cover;position:static!important}
+.logout-btn{white-space:nowrap}
+.greeting{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:right}
+@media(max-width:480px){
+  .nav{padding:12px 14px!important;gap:8px!important}
+  .greeting{font-size:12px!important}
+  .logout-btn{padding:8px 13px!important;font-size:12px!important}
+  .tab{padding:9px 12px!important;font-size:12px!important}
+  .tabs{gap:2px!important;justify-content:space-between}
+}
+.logo-icon{color:var(--sh-g7)!important}
+body.auth #phoneCountryWrap select{max-width:150px!important;font-size:14px!important}
+@media(max-width:480px){.nav:has(.nav-actions) .greeting{display:none}}
+@media(max-width:400px){.tab{padding:9px 9px!important;font-size:11.5px!important}}
