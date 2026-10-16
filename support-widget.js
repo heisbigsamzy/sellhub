@@ -56,21 +56,31 @@
     var KEY = 'sh_install_dismissed';
     function dismissedRecently() { try { var t = Number(localStorage.getItem(KEY) || 0); return t && (Date.now() - t) < 3 * 24 * 3600 * 1000; } catch (e) { return false; } }
     function rememberDismiss() { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {} }
-    var bn = null;
-    function hideBanner() { if (bn) { bn.style.transform = 'translateY(-140%)'; var b = bn; bn = null; setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 400); } }
+    var bn = null;   // host element; the banner lives in a shadow root so page styles can never distort it
+    function hideBanner() { if (bn) { var h = bn, card = h._card; if (card) card.style.transform = 'translateY(-140%)'; bn = null; setTimeout(function () { if (h.parentNode) h.parentNode.removeChild(h); }, 400); } }
     function showBanner() {
-      if (bn || dismissedRecently() || !document.body) return;
-      var st = document.createElement('style');
-      st.textContent = '#shi{position:fixed;top:10px;left:10px;right:10px;max-width:440px;margin:0 auto;z-index:2147483000;background:#fff;border-radius:16px;box-shadow:0 10px 36px rgba(0,0,0,.22);padding:12px 12px 12px 14px;display:flex;align-items:center;gap:12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;transform:translateY(-140%);transition:transform .4s ease}#shi img{width:44px;height:44px;border-radius:11px;flex:none}#shi .t{flex:1;min-width:0}#shi b{display:block;font-size:14px;color:#111}#shi span{display:block;font-size:12px;color:#555;margin-top:2px;line-height:1.35}#shi button{border:0;cursor:pointer;font-weight:700;font-size:13px;border-radius:10px;padding:9px 14px}#shi .go{background:#0f7b4a;color:#fff}#shi .no{background:transparent;color:#777;padding:9px 6px;font-weight:600}@media(prefers-reduced-motion:reduce){#shi{transition:none}}';
-      document.head.appendChild(st);
-      bn = document.createElement('div'); bn.id = 'shi'; bn.setAttribute('role', 'dialog'); bn.setAttribute('aria-label', 'Install SellHub');
-      bn.innerHTML = '<img src="/icon-192.png?v=2" alt=""><div class="t"><b>Install SellHub</b><span id="shi-m">' + (deferred ? 'Get the app on your home screen. Opens fast, no browser bar.' : 'Add SellHub to your home screen for quick access.') + '</span></div><button class="go" id="shi-go">' + (deferred ? 'Install' : 'How') + '</button><button class="no" id="shi-no" aria-label="Not now">Not now</button>';
-      document.body.appendChild(bn);
-      requestAnimationFrame(function () { requestAnimationFrame(function () { if (bn) bn.style.transform = 'translateY(0)'; }); });
-      bn.querySelector('#shi-no').addEventListener('click', function () { rememberDismiss(); hideBanner(); });
-      bn.querySelector('#shi-go').addEventListener('click', function () {
+      if (bn || dismissedRecently() || !document.body || !document.body.attachShadow) return;
+      var host = document.createElement('div'); host.id = 'shi-host';
+      host.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483000;pointer-events:none;');
+      var root = host.attachShadow({ mode: 'open' });
+      var msg = deferred ? 'Get the app on your home screen. Opens fast, no browser bar.' : 'Add SellHub to your home screen for quick access.';
+      root.innerHTML = '<style>' +
+        ':host{all:initial}*{box-sizing:border-box;margin:0;padding:0}' +
+        '.card{pointer-events:auto;position:relative;margin:10px auto 0;width:calc(100% - 20px);max-width:440px;background:#fff;border-radius:18px;box-shadow:0 10px 36px rgba(0,0,0,.22);padding:14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;transform:translateY(-140%);transition:transform .4s ease}' +
+        '.top{display:flex;align-items:center;gap:12px}.top img{width:46px;height:46px;border-radius:11px;flex:0 0 46px;display:block}' +
+        '.t{flex:1 1 auto;min-width:0}.t b{display:block;font-size:15px;line-height:1.25;color:#111}.t span{display:block;font-size:13px;line-height:1.35;color:#555;margin-top:2px}' +
+        '.btns{display:flex;gap:10px;margin-top:12px}.btns button{flex:1 1 0;width:auto;height:42px;border:0;border-radius:12px;font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none}' +
+        '.go{background:#0f7b4a;color:#fff}.no{background:#f1f3f2;color:#555;font-weight:600}' +
+        '@media(prefers-reduced-motion:reduce){.card{transition:none}}</style>' +
+        '<div class="card" role="dialog" aria-label="Install SellHub"><div class="top"><img src="/icon-192.png?v=2" alt=""><div class="t"><b>Install SellHub</b><span id="m">' + msg + '</span></div></div>' +
+        '<div class="btns"><button class="go" id="go">' + (deferred ? 'Install' : 'How') + '</button><button class="no" id="no">Not now</button></div></div>';
+      document.body.appendChild(host);
+      var card = root.querySelector('.card'); host._card = card; bn = host;
+      requestAnimationFrame(function () { requestAnimationFrame(function () { card.style.transform = 'translateY(0)'; }); });
+      root.getElementById('no').addEventListener('click', function () { rememberDismiss(); hideBanner(); });
+      root.getElementById('go').addEventListener('click', function () {
         if (deferred) { var d = deferred; deferred = null; d.prompt(); hideBanner(); inst.style.display = 'none'; }
-        else { bn.querySelector('#shi-m').textContent = 'Tap the Share button at the bottom of Safari, then choose "Add to Home Screen".'; bn.querySelector('#shi-go').style.display = 'none'; }
+        else { root.getElementById('m').textContent = 'Tap the Share button at the bottom of Safari, then choose "Add to Home Screen".'; root.getElementById('go').style.display = 'none'; }
       });
     }
     function scheduleBanner() { setTimeout(showBanner, 1500); }
