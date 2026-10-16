@@ -72,7 +72,7 @@
         '.btns{display:flex;gap:10px;margin-top:12px}.btns button{flex:1 1 0;width:auto;height:42px;border:0;border-radius:12px;font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none}' +
         '.go{background:#0f7b4a;color:#fff}.no{background:#f1f3f2;color:#555;font-weight:600}' +
         '@media(prefers-reduced-motion:reduce){.card{transition:none}}</style>' +
-        '<div class="card" role="dialog" aria-label="Install SellHub"><div class="top"><img src="/icon-192.png?v=2" alt=""><div class="t"><b>Install SellHub</b><span id="m">' + msg + '</span></div></div>' +
+        '<div class="card" role="dialog" aria-label="Install SellHub"><div class="top"><img src="/icon-192.png?v=3" alt=""><div class="t"><b>Install SellHub</b><span id="m">' + msg + '</span></div></div>' +
         '<div class="btns"><button class="go" id="go">' + 'Add now' + '</button><button class="no" id="no">Not now</button></div></div>';
       document.body.appendChild(host);
       var card = root.querySelector('.card'); host._card = card; bn = host;
