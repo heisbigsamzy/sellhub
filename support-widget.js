@@ -63,24 +63,30 @@
       var host = document.createElement('div'); host.id = 'shi-host';
       host.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483000;pointer-events:none;');
       var root = host.attachShadow({ mode: 'open' });
-      var msg = deferred ? 'Get the app on your home screen. Opens fast, no browser bar.' : 'Add SellHub to your home screen for quick access.';
+      var msg = deferred ? 'Tap Add now to put SellHub on your home screen. Opens fast, no browser bar.' : 'Put SellHub on your home screen for quick access.';
       root.innerHTML = '<style>' +
         ':host{all:initial}*{box-sizing:border-box;margin:0;padding:0}' +
         '.card{pointer-events:auto;position:relative;margin:10px auto 0;width:calc(100% - 20px);max-width:440px;background:#fff;border-radius:18px;box-shadow:0 10px 36px rgba(0,0,0,.22);padding:14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;transform:translateY(-140%);transition:transform .4s ease}' +
         '.top{display:flex;align-items:center;gap:12px}.top img{width:46px;height:46px;border-radius:11px;flex:0 0 46px;display:block}' +
-        '.t{flex:1 1 auto;min-width:0}.t b{display:block;font-size:15px;line-height:1.25;color:#111}.t span{display:block;font-size:13px;line-height:1.35;color:#555;margin-top:2px}' +
+        '.t{flex:1 1 auto;min-width:0}.t b{display:block;font-size:15px;line-height:1.25;color:#111}.t strong{display:inline;font-size:inherit;color:#0f7b4a}.t span{display:block;font-size:13px;line-height:1.35;color:#555;margin-top:2px}' +
         '.btns{display:flex;gap:10px;margin-top:12px}.btns button{flex:1 1 0;width:auto;height:42px;border:0;border-radius:12px;font:700 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none}' +
         '.go{background:#0f7b4a;color:#fff}.no{background:#f1f3f2;color:#555;font-weight:600}' +
         '@media(prefers-reduced-motion:reduce){.card{transition:none}}</style>' +
         '<div class="card" role="dialog" aria-label="Install SellHub"><div class="top"><img src="/icon-192.png?v=2" alt=""><div class="t"><b>Install SellHub</b><span id="m">' + msg + '</span></div></div>' +
-        '<div class="btns"><button class="go" id="go">' + (deferred ? 'Install' : 'How') + '</button><button class="no" id="no">Not now</button></div></div>';
+        '<div class="btns"><button class="go" id="go">' + 'Add now' + '</button><button class="no" id="no">Not now</button></div></div>';
       document.body.appendChild(host);
       var card = root.querySelector('.card'); host._card = card; bn = host;
       requestAnimationFrame(function () { requestAnimationFrame(function () { card.style.transform = 'translateY(0)'; }); });
       root.getElementById('no').addEventListener('click', function () { rememberDismiss(); hideBanner(); });
       root.getElementById('go').addEventListener('click', function () {
-        if (deferred) { var d = deferred; deferred = null; d.prompt(); hideBanner(); inst.style.display = 'none'; }
-        else { root.getElementById('m').textContent = 'Tap the Share button at the bottom of Safari, then choose "Add to Home Screen".'; root.getElementById('go').style.display = 'none'; }
+        if (deferred) { var d = deferred; deferred = null; d.prompt(); hideBanner(); inst.style.display = 'none'; return; }
+        // iPhone (and in-app browsers) do not allow a website to add itself, so show the exact taps.
+        var inApp = ios && !/Safari\//.test(navigator.userAgent);
+        var share = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f7b4a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 3v12M8 7l4-4 4 4M5 11v9h14v-9"/></svg>';
+        root.getElementById('m').innerHTML = inApp
+          ? 'This browser cannot add apps. Open this page in <strong>Safari</strong> (tap the menu or compass icon, then <strong>Open in Safari</strong>), then tap <strong>Add now</strong> again.'
+          : '1. Tap the Share button ' + share + ' in Safari<br>2. Scroll and tap <strong>Add to Home Screen</strong><br>3. Tap <strong>Add</strong>. Done!';
+        root.getElementById('go').style.display = 'none';
       });
     }
     function scheduleBanner() { setTimeout(showBanner, 1500); }
