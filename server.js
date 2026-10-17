@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const webpush = require('./push');
 const bcrypt = require('bcryptjs');
 const { sendOTPEmail, sendEmail } = require('./mailer');
 const { verifyGoogleToken } = require('./googleAuth');
@@ -31,7 +32,8 @@ const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILES = [
   'admin-withdrawals.json', 'customers.json', 'disputes.json', 'notifications.json',
   'orders.json', 'payments.json', 'products.json', 'reviews.json',
-  'seller-notifications.json', 'sellers.json', 'settings.json', 'withdrawals.json'
+  'seller-notifications.json', 'sellers.json', 'settings.json', 'withdrawals.json',
+  'push-subscriptions.json', 'vapid.json'
 ];
 // The very first time a persistent disk is attached, it's empty. Seed it
 // once from whatever's already sitting next to server.js (your current
@@ -488,6 +490,47 @@ function getPlatformRevenue() {
   return customerFeeRevenue + withdrawalFeeRevenue;
 }
 
+
+// ---------- PUSH NOTIFICATIONS (alerts that arrive even when SellHub is closed) ----------
+// Each phone/computer that taps "Allow" registers a subscription. Every in-app notification
+// is also sent to those subscriptions, so it pops up outside the site, like Facebook.
+// The VAPID key pair is the site's sender identity. Set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+// to pin it; otherwise one is generated once and kept with the other data (and backed up).
+function getVapid() {
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    return { publicKey: process.env.VAPID_PUBLIC_KEY.trim(), privateKey: process.env.VAPID_PRIVATE_KEY.trim() };
+  }
+  try {
+    const v = readJSON('vapid.json');
+    if (v && v.publicKey && v.privateKey) return v;
+  } catch (e) {}
+  const v = webpush.generateVapidKeys();
+  writeJSON('vapid.json', v);
+  return v;
+}
+function readPushSubs() { try { const a = readJSON('push-subscriptions.json'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function pushSubject() {
+  const e = ADMIN_EMAIL && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ADMIN_EMAIL) ? ADMIN_EMAIL : 'support@sellhubmarket.xyz';
+  return process.env.VAPID_SUBJECT || ('mailto:' + e);
+}
+// Fire-and-forget: never throws, never slows the request that created the notification.
+function pushToAccount(accountType, email, n) {
+  try {
+    const subs = readPushSubs().filter(s => s.accountType === accountType && s.email === email);
+    if (!subs.length) return;
+    const vapid = getVapid();
+    const payload = {
+      id: n.id, type: n.type || '', title: String(n.title || 'SellHub').slice(0, 80), body: String(n.message || '').slice(0, 180),
+      url: accountType === 'seller' ? '/seller-dashboard' : '/dashboard'
+    };
+    Promise.all(subs.map(sub => webpush.sendPush(sub, payload, vapid, pushSubject()).then(r => ({ sub, r })))).then(results => {
+      const dead = new Set(results.filter(x => x.r.gone).map(x => x.sub.endpoint));
+      results.forEach(x => { if (!x.r.ok && !x.r.gone) console.log('Push failed (' + accountType + '):', x.r.status || x.r.error); });
+      if (dead.size) writeJSON('push-subscriptions.json', readPushSubs().filter(s => !dead.has(s.endpoint)));
+    }).catch(err => console.log('Push error:', err.message));
+  } catch (err) { console.log('Push error:', err.message); }
+}
+
 // Creates an in-app notification for a customer. This is the single place
 // that writes to notifications.json, so every notification — regardless of
 // what triggered it — has the same shape.
@@ -501,6 +544,7 @@ function createNotification(customerEmail, orderId, type, title, message) {
   };
   notifications.unshift(notification);
   writeJSON('notifications.json', notifications);
+  pushToAccount('customer', customerEmail, notification);
   return notification;
 }
 
@@ -517,6 +561,7 @@ function createSellerNotification(sellerEmail, orderId, type, title, message) {
   };
   notifications.unshift(notification);
   writeJSON('seller-notifications.json', notifications);
+  pushToAccount('seller', sellerEmail, notification);
   return notification;
 }
 
@@ -2028,6 +2073,7 @@ const server = http.createServer((req, res) => {
       writeJSON('products.json', products.filter(p => p.sellerEmail !== email));
       writeJSON('reviews.json', readJSON('reviews.json').filter(r => !myProductIds.has(r.productId)));
       writeJSON('seller-notifications.json', readJSON('seller-notifications.json').filter(n => n.sellerEmail !== email));
+      writeJSON('push-subscriptions.json', readPushSubs().filter(x => !(x.accountType === 'seller' && x.email === email)));
 
       // Keep order / payout / dispute history, but detach it from this email.
       const tombstone = `deleted-seller-${crypto.randomBytes(4).toString('hex')}@deleted.invalid`;
@@ -2380,6 +2426,46 @@ const server = http.createServer((req, res) => {
     if (!session) return;
     const orders = readJSON('orders.json').filter(o => o.customerEmail === session.email);
     return sendJSON(res, { ok: true, orders });
+  }
+
+  // ---------- PUSH SUBSCRIPTIONS ----------
+  if (req.method === 'GET' && req.url.split('?')[0] === '/api/push/key') {
+    return sendJSON(res, { ok: true, key: getVapid().publicKey });
+  }
+  if (req.method === 'POST' && req.url === '/api/push/subscribe') {
+    const session = getSession(req);
+    if (!session || (session.accountType !== 'customer' && session.accountType !== 'seller')) {
+      return sendJSON(res, { ok: false, message: 'Please log in again.' }, 401);
+    }
+    readBody(req).then(({ subscription }) => {
+      const sub = subscription || {};
+      if (!sub.endpoint || !/^https:\/\//.test(String(sub.endpoint)) || String(sub.endpoint).length > 1000 ||
+          !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+        return sendJSON(res, { ok: false, message: 'Invalid subscription.' }, 400);
+      }
+      const all = readPushSubs().filter(s => s.endpoint !== sub.endpoint); // a device belongs to whoever logged in last
+      const mine = all.filter(s => s.accountType === session.accountType && s.email === session.email);
+      const others = all.filter(s => !(s.accountType === session.accountType && s.email === session.email));
+      mine.unshift({
+        accountType: session.accountType, email: session.email, endpoint: String(sub.endpoint),
+        keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) },
+        date: new Date().toISOString()
+      });
+      writeJSON('push-subscriptions.json', others.concat(mine.slice(0, 8)));
+      sendJSON(res, { ok: true });
+    }).catch(() => sendJSON(res, { ok: false, message: 'Bad request.' }, 400));
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/api/push/unsubscribe') {
+    readBody(req).then(({ endpoint }) => {
+      if (endpoint) {
+        const before = readPushSubs();
+        const after = before.filter(s => s.endpoint !== endpoint);
+        if (after.length !== before.length) writeJSON('push-subscriptions.json', after);
+      }
+      sendJSON(res, { ok: true });
+    }).catch(() => sendJSON(res, { ok: true }));
+    return;
   }
 
   // ---------- NOTIFICATIONS ----------

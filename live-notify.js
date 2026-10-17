@@ -153,10 +153,62 @@
     schedule(true);
   });
 
+  // ---- real push: lets SellHub alert this device even when the site is closed
+  var pushActive = false;
+  function keyBytes(b64) {
+    var p = (b64 + '===='.slice(b64.length % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(p), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function sameKey(buf, bytes) {
+    if (!buf) return false; var a = new Uint8Array(buf); if (a.length !== bytes.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== bytes[i]) return false; return true;
+  }
+  function ensurePush() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+      if (Notification.permission !== 'granted' || typeof window.authedFetch !== 'function') return;
+      var SYNC = 'sh_push_sync_' + role;
+      navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+        return fetch('/api/push/key').then(function (r) { return r.json(); }).then(function (k) {
+          if (!k || !k.key) return;
+          var want = keyBytes(k.key);
+          return reg.pushManager.getSubscription().then(function (sub) {
+            if (sub && !sameKey(sub.options && sub.options.applicationServerKey, want)) return sub.unsubscribe().then(function () { return null; });
+            return sub;
+          }).then(function (sub) {
+            return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
+          }).then(function (sub) {
+            pushActive = true;
+            var stamp = sub.endpoint + '|' + (Date.now() / 43200000 | 0);
+            try { if (localStorage.getItem(SYNC) === stamp) return; } catch (e) {}
+            return window.authedFetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub.toJSON() }) })
+              .then(function (r) { return r.json(); }).then(function (r) { if (r && r.ok) { try { localStorage.setItem(SYNC, stamp); } catch (e) {} } });
+          });
+        });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  // Called on log out so the next person on this device doesn't get this account's alerts.
+  function dropPush() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve();
+      try { localStorage.removeItem('sh_push_sync_' + role); } catch (e) {}
+      return navigator.serviceWorker.getRegistration().then(function (reg) {
+        return reg && reg.pushManager.getSubscription();
+      }).then(function (sub) {
+        if (!sub) return;
+        return fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) })
+          .catch(function () {}).then(function () { return sub.unsubscribe(); });
+      }).catch(function () {});
+    } catch (e) { return Promise.resolve(); }
+  }
+
   // ---- system notification (only when allowed, and only when the tab is in the background)
   function systemNotify(n) {
     try {
-      if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+      if (pushActive || !('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
       var opts = { body: n.message || '', icon: ICON, badge: ICON, tag: 'sh-' + n.id };
       if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
         navigator.serviceWorker.getRegistration().then(function (reg) {
@@ -235,15 +287,15 @@
     function onTap() {
       window.removeEventListener('pointerdown', onTap, true);
       window.removeEventListener('keydown', onTap, true);
-      try { var p = Notification.requestPermission(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      try { var p = Notification.requestPermission(); if (p && p.then) p.then(function (r) { if (r === 'granted') ensurePush(); }, function () {}); } catch (e) {}
     }
     window.addEventListener('pointerdown', onTap, true);
     window.addEventListener('keydown', onTap, true);
   }
 
-  function start() { mount(); poll(); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
+  function start() { mount(); poll(); ensurePush(); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
   // handy for testing / other pages
-  window.SHLive = { poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
+  window.SHLive = { unsubscribe: dropPush, poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
 })();

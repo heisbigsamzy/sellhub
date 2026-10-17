@@ -1080,6 +1080,7 @@
   }
 
   async function logout(){
+    try { if (window.SHLive && window.SHLive.unsubscribe) await window.SHLive.unsubscribe(); } catch (e) {}
     try { await fetch('/api/logout', { method: 'POST', headers: authHeaders }); } catch (e) {}
     localStorage.removeItem('sellhub_seller');
     localStorage.removeItem('sellhub_seller_token');
@@ -1187,7 +1188,7 @@
   setInterval(refreshViews, 4000);
   document.addEventListener('visibilitychange', refreshViews);
 </script>
-<script src="/live-notify.js?v=2" data-role="seller" defer></script>
+<script src="/live-notify.js?v=3" data-role="seller" defer></script>
 <script src="/support-widget.js?v=7" defer></script>
 </body>
 </html>
