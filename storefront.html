@@ -364,11 +364,10 @@
     closeModal('viewModal');
   }
 
+  // Buy Now: straight to delivery details and payment for this one product. The cart is left alone.
   function addToCartAndGo(id){
     if (!requireLogin(id, 'buy')) return;
-    const r = putInCart(id);
-    if (r === 'error') return;
-    window.location.href = '/dashboard#cart';
+    window.location.href = '/dashboard#buy=' + encodeURIComponent(id);
   }
 
   if (customer) document.getElementById('cartLink').textContent = 'My Account';

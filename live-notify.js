@@ -291,6 +291,8 @@
       var later = Number(localStorage.getItem(ASK_KEY) || 0);
       if (later && Date.now() - later < 86400000) return; // "Not now" hides it for a day
     } catch (e) { return; }
+    // Never cover a checkout / pop-up form: wait until it is closed.
+    if (document.body.classList.contains('modal-open') || document.querySelector('.modal-overlay.active')) { setTimeout(askPermission, 8000); return; }
     mount();
     var card = document.createElement('div');
     card.className = 'card ask';
