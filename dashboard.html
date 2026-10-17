@@ -1236,6 +1236,8 @@
 
   renderCategoryStrip();
   if (customer) { loadProducts(); pollNotifBadge(); }
+  // Coming from a store's Buy Now: open straight on the cart.
+  if (customer && location.hash === '#cart') { showTab('cart'); history.replaceState(null, '', '/dashboard'); }
 
   // When Paystack sends the customer back after paying, the address ends in
   // ?deposit=success (or cancelled / pending / failed). Show what happened.

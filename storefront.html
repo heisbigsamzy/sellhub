@@ -338,21 +338,37 @@
     return true;
   }
 
+  // The cart is saved as { productId: quantity } (the same format the customer dashboard uses).
+  // Older carts were a plain list of ids, so those are converted. Never throws: if the browser
+  // refuses to store anything, the customer is told instead of the button silently doing nothing.
+  function putInCart(id){
+    let raw = {};
+    try { raw = JSON.parse(localStorage.getItem(CART_KEY) || '{}'); } catch (e) { raw = {}; }
+    let cart = {};
+    if (Array.isArray(raw)) raw.forEach(x => { cart[x] = (cart[x] || 0) + 1; });
+    else if (raw && typeof raw === 'object') cart = raw;
+    const p = products.find(x => String(x.id) === String(id));
+    const max = Math.min(99, p && typeof p.stock === 'number' ? p.stock : 99);
+    const now = Number(cart[id]) || 0;
+    if (now >= max) { alert(max <= 0 ? 'Sorry, this item is out of stock.' : 'You already have the most available (' + max + ') in your cart.'); return 'full'; }
+    cart[id] = now + 1;
+    try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+    catch (e) { alert('Could not save your cart. Please turn off private browsing and try again.'); return 'error'; }
+    return 'ok';
+  }
+
   function addToCart(id){
     if (!requireLogin(id, 'cart')) return;
-    const cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-    cart.push(id);
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    if (putInCart(id) !== 'ok') return;
     alert('Added to cart!');
     closeModal('viewModal');
   }
 
   function addToCartAndGo(id){
     if (!requireLogin(id, 'buy')) return;
-    const cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-    cart.push(id);
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-    window.location.href = '/dashboard';
+    const r = putInCart(id);
+    if (r === 'error') return;
+    window.location.href = '/dashboard#cart';
   }
 
   if (customer) document.getElementById('cartLink').textContent = 'My Account';
