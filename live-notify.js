@@ -49,6 +49,19 @@
     '.ask .btns{display:flex;gap:8px;margin-top:10px}' +
     '.ask button.go{border:0;background:#0b3d28;color:#fff;font:600 14px Poppins,system-ui,sans-serif;padding:10px 18px;border-radius:999px;cursor:pointer}' +
     '.ask button.no{border:0;background:#eef3f0;color:#41584c;font:600 14px Poppins,system-ui,sans-serif;padding:10px 16px;border-radius:999px;cursor:pointer}' +
+    '.ov{position:fixed;inset:0;z-index:2147483640;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,40,26,.78);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;animation:fade .25s ease both}' +
+    '.bx{background:#fff;color:#10241a;border-radius:28px;width:100%;max-width:400px;padding:30px 22px 22px;text-align:center;box-shadow:0 30px 70px -20px rgba(0,0,0,.6);max-height:92vh;overflow:auto}' +
+    '.bell{width:88px;height:88px;border-radius:50%;background:#0b3d28;display:flex;align-items:center;justify-content:center;font-size:42px;margin:0 auto 18px;box-shadow:0 0 0 8px #e3f5ea;animation:ring 1.6s ease-in-out infinite}' +
+    '.bx h2{margin:0 0 10px;font-size:25px;line-height:1.2;font-weight:800;letter-spacing:-.02em}' +
+    '.bx p{margin:0 0 8px;font-size:15px;line-height:1.5;color:#41584c}' +
+    '.bx ol{text-align:left;margin:12px auto 6px;padding-left:22px;font-size:15px;line-height:1.6;color:#10241a}' +
+    '.bx .step{display:inline-block;margin:6px 0 0;font-size:13px;font-weight:600;color:#0b3d28;background:#e3f5ea;border-radius:999px;padding:6px 14px}' +
+    '.big{display:block;width:100%;margin-top:18px;border:0;border-radius:999px;height:58px;background:#c7f464;color:#0b3d28;font:800 17px Poppins,system-ui,sans-serif;cursor:pointer;box-shadow:0 12px 24px -10px rgba(11,61,40,.55)}' +
+    '.big:active{transform:scale(.98)}' +
+    '.later{display:block;margin:14px auto 0;border:0;background:none;color:#5a7064;font:600 14px Poppins,system-ui,sans-serif;text-decoration:underline;cursor:pointer;padding:6px 10px}' +
+    '@keyframes fade{from{opacity:0}to{opacity:1}}' +
+    '@keyframes ring{0%,100%{transform:rotate(0)}10%{transform:rotate(14deg)}20%{transform:rotate(-12deg)}30%{transform:rotate(9deg)}40%{transform:rotate(-6deg)}50%{transform:rotate(0)}}' +
+    '@media (prefers-reduced-motion:reduce){.ov,.bell{animation:none}}' +
     '@keyframes in{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:none}}' +
     '@keyframes out{to{opacity:0;transform:translateY(-12px)}}' +
     '@media (prefers-reduced-motion:reduce){.card,.card.out{animation:none}}' +
@@ -281,64 +294,81 @@
     }).catch(function () { busy = false; }).then(function () { schedule(false); });
   }
 
-  // ---- system alerts: a plain-words card first, then the browser's own "Allow" box.
-  // (Browsers never let a site skip that box, so the card tells people exactly what to tap.)
+  // ---- system alerts: a big full-screen prompt on every login until alerts are on.
+  // (Browsers never let a site skip their own "Allow" box, so this explains it in plain words first.)
   var ASK_KEY = 'sh_alerts_later_' + role;
-  var asking = false;
-  function infoCard(title, text, goLabel, onGo) {
-    mount();
-    var card = document.createElement('div');
-    card.className = 'card ask';
-    var ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '🔔';
-    var tx = document.createElement('div'); tx.className = 'tx';
-    var ti = document.createElement('p'); ti.className = 'ti'; ti.textContent = title;
-    var ms = document.createElement('p'); ms.className = 'ms'; ms.style.webkitLineClamp = 'unset'; ms.innerHTML = text;
-    var btns = document.createElement('div'); btns.className = 'btns';
-    if (goLabel) {
-      var go = document.createElement('button'); go.className = 'go'; go.type = 'button'; go.textContent = goLabel;
-      go.addEventListener('click', function () { removeCard(card); onGo(); });
-      btns.appendChild(go);
-    }
-    var no = document.createElement('button'); no.className = 'no'; no.type = 'button'; no.textContent = goLabel ? 'Not now' : 'OK';
-    no.addEventListener('click', function () { try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) {} removeCard(card); });
-    btns.appendChild(no);
-    tx.appendChild(ti); tx.appendChild(ms); tx.appendChild(btns);
-    card.appendChild(ic); card.appendChild(tx);
-    stack.appendChild(card);
+  var promptEl = null;
+  function closePrompt() { if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl); promptEl = null; }
+  function snooze() { try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) {} closePrompt(); }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }
+  function bigPrompt(opts) {
+    closePrompt(); mount();
+    var ov = el('div', 'ov'); ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', opts.title);
+    var bx = el('div', 'bx');
+    bx.appendChild(el('div', 'bell', opts.icon || '🔔'));
+    bx.appendChild(el('h2', '', opts.title));
+    (opts.paras || []).forEach(function (t) { bx.appendChild(el('p', '', t)); });
+    if (opts.steps) { var ol = el('ol'); opts.steps.forEach(function (t) { var li = el('li'); li.innerHTML = t; ol.appendChild(li); }); bx.appendChild(ol); }
+    if (opts.hint) bx.appendChild(el('span', 'step', opts.hint));
+    var go = el('button', 'big', opts.button); go.type = 'button'; go.addEventListener('click', opts.onGo || snooze); bx.appendChild(go);
+    if (opts.later) { var lt = el('button', 'later', opts.later); lt.type = 'button'; lt.addEventListener('click', snooze); bx.appendChild(lt); }
+    ov.appendChild(bx); root.appendChild(ov); promptEl = ov;
   }
   function askPermission() {
-    if (asking) return;
+    if (promptEl) return;
     try {
       var later = Number(localStorage.getItem(ASK_KEY) || 0);
-      if (later && Date.now() - later < 86400000) return; // "Not now" hides it for a day
+      if (later && Date.now() - later < 2 * 3600000) return; // "Maybe later" hides it for 2 hours
     } catch (e) {}
     // Never cover the checkout form: wait until it is closed.
     if (document.querySelector('#checkoutModal.active')) { setTimeout(askPermission, 8000); return; }
+    var seller = role === 'seller';
+    var what = seller ? 'the moment you get a new order' : 'the moment your order is shipped or delivered';
     var supported = ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
     var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var who = role === 'seller' ? 'when you get an order' : 'about your order';
     if (!supported) {
       // iPhone Safari only allows alerts for apps added to the home screen.
       if (ios) {
-        asking = true;
-        infoCard('Get alerts ' + who,
-          'On iPhone, add SellHub to your home screen first:<br>1. Tap the <b>Share</b> button in Safari<br>2. Tap <b>Add to Home Screen</b>, then <b>Add</b><br>3. Open SellHub from your home screen and tap <b>Turn on</b> when asked.', '', null);
+        bigPrompt({
+          title: 'Add SellHub to your Home Screen',
+          paras: ['This lets SellHub alert your phone ' + what + ', even when you are outside the website.'],
+          steps: ['Tap the <b>Share</b> button at the bottom of Safari', 'Tap <b>Add to Home Screen</b>, then <b>Add</b>', 'Open <b>SellHub</b> from your home screen and tap <b>Turn on notifications</b>'],
+          button: 'OK, got it', later: ''
+        });
       }
       return;
     }
-    if (Notification.permission === 'granted') return;
-    asking = true;
+    if (Notification.permission === 'granted') { ensurePush(); return; }
     if (Notification.permission === 'denied') {
-      infoCard('Alerts are turned off', 'To get alerts ' + who + ', open your phone or browser settings, find SellHub (or this website) and allow <b>Notifications</b>.', '', null);
+      bigPrompt({
+        icon: '🔕', title: 'Notifications are blocked',
+        paras: ['You will miss alerts ' + what + '.'],
+        steps: ['Open your phone or browser <b>Settings</b>', 'Find <b>SellHub</b> (or this website) and open <b>Notifications</b>', 'Switch them <b>On</b>, then come back here'],
+        button: 'OK, got it'
+      });
       return;
     }
-    infoCard(role === 'seller' ? 'Get alerts when you get an order' : 'Get alerts about your order',
-      'Tap "Turn on", then tap "Allow" on the next box. After that, SellHub will alert your phone even when the app is closed.', 'Turn on', function () {
-        try { var p = Notification.requestPermission(); if (p && p.then) p.then(function (r) { if (r === 'granted') ensurePush(); }, function () {}); } catch (e) {}
-      });
+    bigPrompt({
+      title: 'Turn on notifications',
+      paras: ['Get an alert on your phone ' + what + ', even when you are outside the website and your phone is locked.'],
+      hint: 'Tap the button, then tap "Allow"',
+      button: 'Turn on notifications', later: 'Maybe later',
+      onGo: function () {
+        closePrompt();
+        try {
+          var p = Notification.requestPermission();
+          if (p && p.then) p.then(function (r) {
+            if (r === 'granted') {
+              ensurePush();
+              showToast({ type: 'Delivered', title: 'Notifications are on', message: 'SellHub will now alert your phone, even when the website is closed.', date: new Date().toISOString() });
+            } else if (r === 'denied') { setTimeout(askPermission, 300); }
+          }, function () {});
+        } catch (e) {}
+      }
+    });
   }
 
-  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 4000); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
+  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 1200); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
   // handy for testing / other pages

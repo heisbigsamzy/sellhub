@@ -869,7 +869,7 @@ function snapshotData() {
 function serveFile(res, fileName, extraHeaders) {
   fs.readFile(fileName, (err, content) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, Object.assign({ 'Content-Type': 'text/html' }, extraHeaders || {}));
+    res.writeHead(200, Object.assign({ 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' }, extraHeaders || {}));
     res.end(content);
   });
 }
