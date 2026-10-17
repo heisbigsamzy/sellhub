@@ -525,7 +525,7 @@ function pushToAccount(accountType, email, n) {
     };
     Promise.all(subs.map(sub => webpush.sendPush(sub, payload, vapid, pushSubject()).then(r => ({ sub, r })))).then(results => {
       const dead = new Set(results.filter(x => x.r.gone).map(x => x.sub.endpoint));
-      results.forEach(x => { if (!x.r.ok && !x.r.gone) console.log('Push failed (' + accountType + '):', x.r.status || x.r.error); });
+      results.forEach(x => { if (!x.r.ok && !x.r.gone) console.log('Push failed (' + accountType + '):', x.r.status || x.r.error, x.r.detail || ''); });
       if (dead.size) writeJSON('push-subscriptions.json', readPushSubs().filter(s => !dead.has(s.endpoint)));
     }).catch(err => console.log('Push error:', err.message));
   } catch (err) { console.log('Push error:', err.message); }
@@ -2443,7 +2443,11 @@ const server = http.createServer((req, res) => {
           !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
         return sendJSON(res, { ok: false, message: 'Invalid subscription.' }, 400);
       }
-      const all = readPushSubs().filter(s => s.endpoint !== sub.endpoint); // a device belongs to whoever logged in last
+      const existing = readPushSubs();
+      const same = existing.find(s => s.endpoint === sub.endpoint && s.accountType === session.accountType && s.email === session.email &&
+        s.keys && s.keys.p256dh === sub.keys.p256dh && s.keys.auth === sub.keys.auth);
+      if (same) return sendJSON(res, { ok: true, unchanged: true }); // already registered: nothing to save
+      const all = existing.filter(s => s.endpoint !== sub.endpoint); // a device belongs to whoever logged in last
       const mine = all.filter(s => s.accountType === session.accountType && s.email === session.email);
       const others = all.filter(s => !(s.accountType === session.accountType && s.email === session.email));
       mine.unshift({
@@ -2454,6 +2458,36 @@ const server = http.createServer((req, res) => {
       writeJSON('push-subscriptions.json', others.concat(mine.slice(0, 8)));
       sendJSON(res, { ok: true });
     }).catch(() => sendJSON(res, { ok: false, message: 'Bad request.' }, 400));
+    return;
+  }
+  // Sends a test alert to this account's registered devices and says exactly what happened,
+  // so a phone that is not receiving alerts can be diagnosed from the screen.
+  if (req.method === 'POST' && req.url === '/api/push/test') {
+    const session = getSession(req);
+    if (!session || (session.accountType !== 'customer' && session.accountType !== 'seller')) {
+      return sendJSON(res, { ok: false, message: 'Please log in again.' }, 401);
+    }
+    const subs = readPushSubs().filter(s => s.accountType === session.accountType && s.email === session.email);
+    if (!subs.length) return sendJSON(res, { ok: false, registered: 0, message: 'This phone is not registered for alerts yet.' });
+    const key = session.accountType + ':' + session.email;
+    global.__pushTestAt = global.__pushTestAt || {};
+    if (Date.now() - (global.__pushTestAt[key] || 0) < 4000) return sendJSON(res, { ok: false, message: 'Please wait a few seconds and try again.' });
+    global.__pushTestAt[key] = Date.now();
+    const vapid = getVapid();
+    const payload = {
+      id: Date.now(), type: 'Delivered', title: 'Notifications are on ✅',
+      body: session.accountType === 'seller' ? 'You will get an alert like this the moment you get a new order.' : 'You will get an alert like this when your order moves.',
+      url: session.accountType === 'seller' ? '/seller-dashboard' : '/dashboard', force: true
+    };
+    Promise.all(subs.map(sub => webpush.sendPush(sub, payload, vapid, pushSubject()))).then(results => {
+      const dead = new Set(subs.filter((s, i) => results[i].gone).map(s => s.endpoint));
+      if (dead.size) writeJSON('push-subscriptions.json', readPushSubs().filter(s => !dead.has(s.endpoint)));
+      results.forEach(r => { if (!r.ok) console.log('Push test failed:', r.status || r.error, r.detail || ''); });
+      sendJSON(res, {
+        ok: results.some(r => r.ok), registered: subs.length,
+        results: results.map(r => ({ ok: r.ok, status: r.status, gone: !!r.gone, error: r.error || '', detail: r.detail || '' }))
+      });
+    }).catch(() => sendJSON(res, { ok: false, message: 'Could not send the test.' }));
     return;
   }
   if (req.method === 'POST' && req.url === '/api/push/unsubscribe') {

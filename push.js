@@ -85,8 +85,9 @@ function sendPush(subscription, payload, vapid, subject, opts) {
         },
         timeout: 15000
       }, res => {
-        res.resume();
-        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, gone: res.statusCode === 404 || res.statusCode === 410 }));
+        let text = '';
+        res.on('data', d => { if (text.length < 300) text += d; });
+        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, gone: res.statusCode === 404 || res.statusCode === 410, detail: text.slice(0, 200) }));
       });
       req.on('timeout', () => { req.destroy(new Error('timeout')); });
       req.on('error', err => resolve({ ok: false, status: 0, gone: false, error: err.message }));

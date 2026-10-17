@@ -184,36 +184,61 @@
     if (!buf) return false; var a = new Uint8Array(buf); if (a.length !== bytes.length) return false;
     for (var i = 0; i < a.length; i++) if (a[i] !== bytes[i]) return false; return true;
   }
-  function ensurePush() {
+  var READY_KEY = 'sh_push_ready_' + role;
+  function setReady(v) { try { if (v) localStorage.setItem(READY_KEY, '1'); else localStorage.removeItem(READY_KEY); } catch (e) {} }
+  function isReady() { try { return localStorage.getItem(READY_KEY) === '1'; } catch (e) { return false; } }
+  function errText(e) { return (e && (e.name ? e.name + ': ' : '') + (e.message || e)) || 'unknown error'; }
+
+  // Registers this phone/browser for push and saves it on the server. Resolves { ok, step, error }.
+  // Never throws. `interactive` also asks the server to send a visible test alert.
+  function enablePush(interactive) {
+    var step = 'start';
+    function fail(e, s) { setReady(false); return { ok: false, step: s || step, error: typeof e === 'string' ? e : errText(e) }; }
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
-      if (Notification.permission !== 'granted' || typeof window.authedFetch !== 'function') return;
-      var SYNC = 'sh_push_sync_' + role;
-      navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
-        return fetch('/api/push/key').then(function (r) { return r.json(); }).then(function (k) {
-          if (!k || !k.key) return;
-          var want = keyBytes(k.key);
-          return reg.pushManager.getSubscription().then(function (sub) {
-            if (sub && !sameKey(sub.options && sub.options.applicationServerKey, want)) return sub.unsubscribe().then(function () { return null; });
-            return sub;
-          }).then(function (sub) {
-            return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
-          }).then(function (sub) {
-            pushActive = true;
-            var stamp = sub.endpoint + '|' + (Date.now() / 43200000 | 0);
-            try { if (localStorage.getItem(SYNC) === stamp) return; } catch (e) {}
-            return window.authedFetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub.toJSON() }) })
-              .then(function (r) { return r.json(); }).then(function (r) { if (r && r.ok) { try { localStorage.setItem(SYNC, stamp); } catch (e) {} } });
+      if (!('serviceWorker' in navigator)) return Promise.resolve(fail('This browser cannot run background alerts (no service worker).', 'support'));
+      if (!('PushManager' in window)) return Promise.resolve(fail('This browser cannot receive push alerts. On iPhone, open SellHub from the home-screen icon.', 'support'));
+      if (!('Notification' in window)) return Promise.resolve(fail('Notifications are not available in this browser.', 'support'));
+      if (Notification.permission !== 'granted') return Promise.resolve(fail('Notifications are not allowed yet.', 'permission'));
+      if (typeof window.authedFetch !== 'function') return Promise.resolve(fail('Page is still loading.', 'page'));
+    } catch (e) { return Promise.resolve(fail(e)); }
+    var reg;
+    step = 'service worker';
+    return navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (r) {
+      reg = r; step = 'server key';
+      return fetch('/api/push/key').then(function (x) { return x.json(); });
+    }).then(function (k) {
+      if (!k || !k.key) throw new Error('server did not give a key');
+      var want = keyBytes(k.key);
+      step = 'subscribe';
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub && !sameKey(sub.options && sub.options.applicationServerKey, want)) return sub.unsubscribe().then(function () { return null; });
+        return sub;
+      }).then(function (sub) {
+        return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
+      });
+    }).then(function (sub) {
+      pushActive = true; step = 'save on server';
+      return window.authedFetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub.toJSON() }) })
+        .then(function (x) { return x.json(); }).then(function (r) {
+          if (!r || !r.ok) throw new Error((r && r.message) || 'server refused the registration');
+          setReady(true);
+          if (!interactive) return { ok: true, step: 'done' };
+          step = 'test alert';
+          return window.authedFetch('/api/push/test', { method: 'POST', body: '{}' }).then(function (x) { return x.json(); }).then(function (t) {
+            if (t && t.ok) return { ok: true, step: 'done', tested: true };
+            var d = t && t.results && t.results[0];
+            return { ok: false, step: 'test alert', error: (t && t.message) || (d ? ('the push service answered ' + (d.status || d.error) + (d.detail ? ' - ' + d.detail : '')) : 'test failed') };
           });
         });
-      }).catch(function () {});
-    } catch (e) {}
+    }).catch(function (e) { return fail(e); });
   }
+  function ensurePush() { return enablePush(false); }
+
   // Called on log out so the next person on this device doesn't get this account's alerts.
   function dropPush() {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return Promise.resolve();
-      try { localStorage.removeItem('sh_push_sync_' + role); } catch (e) {}
+      setReady(false);
       return navigator.serviceWorker.getRegistration().then(function (reg) {
         return reg && reg.pushManager.getSubscription();
       }).then(function (sub) {
@@ -316,6 +341,28 @@
     if (opts.later) { var lt = el('button', 'later', opts.later); lt.type = 'button'; lt.addEventListener('click', snooze); bx.appendChild(lt); }
     ov.appendChild(bx); root.appendChild(ov); promptEl = ov;
   }
+  // The full "turn on" path, with every outcome shown on screen.
+  function turnOn() {
+    if (!('Notification' in window)) { askPermission(true); return; }
+    function finish() {
+      showToast({ type: 'Reminder', title: 'Turning on alerts...', message: 'One moment.', date: new Date().toISOString() });
+      enablePush(true).then(function (r) {
+        if (r.ok) {
+          bigPrompt({ icon: '✅', title: 'Notifications are on', paras: ['A test alert is on its way to your phone now. If you do not see it, lock your phone and wait a few seconds.', 'From now on SellHub will alert you even when the website is closed.'], button: 'Done', onGo: closePrompt });
+        } else {
+          bigPrompt({ icon: '⚠️', title: 'Almost there', paras: ['This phone could not be registered for alerts.', 'Problem at "' + r.step + '": ' + r.error], button: 'Try again', later: 'Close', onGo: function () { closePrompt(); turnOn(); } });
+        }
+      });
+    }
+    try {
+      if (Notification.permission === 'granted') { finish(); return; }
+      var p = Notification.requestPermission(function (res) { if (res === 'granted') finish(); else if (res === 'denied') askPermission(true); });
+      if (p && p.then) p.then(function (res) { if (res === 'granted') finish(); else if (res === 'denied') askPermission(true); }, function () {});
+    } catch (e) {
+      bigPrompt({ icon: '⚠️', title: 'Could not ask for permission', paras: [errText(e)], button: 'Close' });
+    }
+  }
+
   function askPermission(force) {
     if (promptEl) return;
     if (force !== true) {
@@ -342,7 +389,7 @@
       }
       return;
     }
-    if (Notification.permission === 'granted') { ensurePush(); return; }
+    if (Notification.permission === 'granted') { if (!isReady() || force === true) turnOn(); return; }
     if (Notification.permission === 'denied') {
       bigPrompt({
         icon: '🔕', title: 'Notifications are blocked',
@@ -357,38 +404,27 @@
       paras: ['Get an alert on your phone ' + what + ', even when you are outside the website and your phone is locked.'],
       hint: 'Tap the button, then tap "Allow"',
       button: 'Turn on notifications', later: 'Maybe later',
-      onGo: function () {
-        closePrompt();
-        try {
-          var p = Notification.requestPermission();
-          if (p && p.then) p.then(function (r) {
-            if (r === 'granted') {
-              ensurePush();
-              showToast({ type: 'Delivered', title: 'Notifications are on', message: 'SellHub will now alert your phone, even when the website is closed.', date: new Date().toISOString() });
-            } else if (r === 'denied') { setTimeout(function () { askPermission(true); }, 300); }
-          }, function () {});
-        } catch (e) {}
-      }
+      onGo: function () { closePrompt(); turnOn(); }
     });
   }
 
   // A small button that stays on the screen until alerts are on, so the big screen can always be reopened.
   var pillEl = null;
-  function alertsOn() { try { return ('Notification' in window) && Notification.permission === 'granted'; } catch (e) { return false; } }
+  function alertsOn() { try { return ('Notification' in window) && Notification.permission === 'granted' && isReady(); } catch (e) { return false; } }
   function showPill() {
     if (pillEl || alertsOn()) return;
     mount();
     var b = el('button', 'pill'); b.type = 'button';
-    b.appendChild(el('span', '', '🔔')); b.appendChild(document.createTextNode('Turn on alerts'));
+    b.appendChild(el('span', '', '🔔')); b.appendChild(document.createTextNode(('Notification' in window) && Notification.permission === 'granted' ? 'Finish turning on alerts' : 'Turn on alerts'));
     b.addEventListener('click', function () { askPermission(true); });
     root.appendChild(b); pillEl = b;
   }
   function hidePill() { if (pillEl && pillEl.parentNode) pillEl.parentNode.removeChild(pillEl); pillEl = null; }
   setInterval(function () { if (alertsOn()) hidePill(); }, 3000);
 
-  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 1200); setTimeout(showPill, 2000); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
+  function start() { mount(); poll(); if (isReady()) ensurePush(); setTimeout(askPermission, 1200); setTimeout(showPill, 2000); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
   // handy for testing / other pages
-  window.SHLive = { prompt: function () { askPermission(true); }, unsubscribe: dropPush, poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
+  window.SHLive = { turnOn: turnOn, enable: function () { return enablePush(true); }, prompt: function () { askPermission(true); }, unsubscribe: dropPush, poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
 })();

@@ -19,7 +19,7 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'SellHub', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    if (list.some(c => c.visibilityState === 'visible' && c.focused !== false)) return;
+    if (!d.force && list.some(c => c.visibilityState === 'visible' && c.focused !== false)) return;
     return self.registration.showNotification(d.title || 'SellHub', {
       body: d.body || '',
       icon: '/icon-192.png?v=4',
