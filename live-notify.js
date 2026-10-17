@@ -262,7 +262,6 @@
         } else {
           fresh = fresh.filter(function (n) { if (new Date(n.date).getTime() < cutoff) { toasted[n.id] = 1; return false; } return true; });
         }
-        setTimeout(askPermission, 2500);
       }
       if (!fresh.length) { saveToasted(); return; }
 
@@ -285,38 +284,61 @@
   // ---- system alerts: a plain-words card first, then the browser's own "Allow" box.
   // (Browsers never let a site skip that box, so the card tells people exactly what to tap.)
   var ASK_KEY = 'sh_alerts_later_' + role;
-  function askPermission() {
-    try {
-      if (!('Notification' in window) || Notification.permission !== 'default') return;
-      var later = Number(localStorage.getItem(ASK_KEY) || 0);
-      if (later && Date.now() - later < 86400000) return; // "Not now" hides it for a day
-    } catch (e) { return; }
-    // Never cover a checkout / pop-up form: wait until it is closed.
-    if (document.body.classList.contains('modal-open') || document.querySelector('.modal-overlay.active')) { setTimeout(askPermission, 8000); return; }
+  var asking = false;
+  function infoCard(title, text, goLabel, onGo) {
     mount();
     var card = document.createElement('div');
     card.className = 'card ask';
     var ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '🔔';
     var tx = document.createElement('div'); tx.className = 'tx';
-    var ti = document.createElement('p'); ti.className = 'ti';
-    ti.textContent = role === 'seller' ? 'Get alerts when you get an order' : 'Get alerts about your order';
-    var ms = document.createElement('p'); ms.className = 'ms';
-    ms.textContent = 'Tap "Turn on", then tap "Allow" on the next box. After that, SellHub will alert your phone even when the app is closed.';
+    var ti = document.createElement('p'); ti.className = 'ti'; ti.textContent = title;
+    var ms = document.createElement('p'); ms.className = 'ms'; ms.style.webkitLineClamp = 'unset'; ms.innerHTML = text;
     var btns = document.createElement('div'); btns.className = 'btns';
-    var go = document.createElement('button'); go.className = 'go'; go.type = 'button'; go.textContent = 'Turn on';
-    var no = document.createElement('button'); no.className = 'no'; no.type = 'button'; no.textContent = 'Not now';
-    btns.appendChild(go); btns.appendChild(no);
+    if (goLabel) {
+      var go = document.createElement('button'); go.className = 'go'; go.type = 'button'; go.textContent = goLabel;
+      go.addEventListener('click', function () { removeCard(card); onGo(); });
+      btns.appendChild(go);
+    }
+    var no = document.createElement('button'); no.className = 'no'; no.type = 'button'; no.textContent = goLabel ? 'Not now' : 'OK';
+    no.addEventListener('click', function () { try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) {} removeCard(card); });
+    btns.appendChild(no);
     tx.appendChild(ti); tx.appendChild(ms); tx.appendChild(btns);
     card.appendChild(ic); card.appendChild(tx);
-    go.addEventListener('click', function () {
-      removeCard(card);
-      try { var p = Notification.requestPermission(); if (p && p.then) p.then(function (r) { if (r === 'granted') ensurePush(); }, function () {}); } catch (e) {}
-    });
-    no.addEventListener('click', function () { try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) {} removeCard(card); });
     stack.appendChild(card);
   }
+  function askPermission() {
+    if (asking) return;
+    try {
+      var later = Number(localStorage.getItem(ASK_KEY) || 0);
+      if (later && Date.now() - later < 86400000) return; // "Not now" hides it for a day
+    } catch (e) {}
+    // Never cover the checkout form: wait until it is closed.
+    if (document.querySelector('#checkoutModal.active')) { setTimeout(askPermission, 8000); return; }
+    var supported = ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var who = role === 'seller' ? 'when you get an order' : 'about your order';
+    if (!supported) {
+      // iPhone Safari only allows alerts for apps added to the home screen.
+      if (ios) {
+        asking = true;
+        infoCard('Get alerts ' + who,
+          'On iPhone, add SellHub to your home screen first:<br>1. Tap the <b>Share</b> button in Safari<br>2. Tap <b>Add to Home Screen</b>, then <b>Add</b><br>3. Open SellHub from your home screen and tap <b>Turn on</b> when asked.', '', null);
+      }
+      return;
+    }
+    if (Notification.permission === 'granted') return;
+    asking = true;
+    if (Notification.permission === 'denied') {
+      infoCard('Alerts are turned off', 'To get alerts ' + who + ', open your phone or browser settings, find SellHub (or this website) and allow <b>Notifications</b>.', '', null);
+      return;
+    }
+    infoCard(role === 'seller' ? 'Get alerts when you get an order' : 'Get alerts about your order',
+      'Tap "Turn on", then tap "Allow" on the next box. After that, SellHub will alert your phone even when the app is closed.', 'Turn on', function () {
+        try { var p = Notification.requestPermission(); if (p && p.then) p.then(function (r) { if (r === 'granted') ensurePush(); }, function () {}); } catch (e) {}
+      });
+  }
 
-  function start() { mount(); poll(); ensurePush(); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
+  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 4000); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
   // handy for testing / other pages
