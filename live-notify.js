@@ -62,6 +62,8 @@
     '@keyframes fade{from{opacity:0}to{opacity:1}}' +
     '@keyframes ring{0%,100%{transform:rotate(0)}10%{transform:rotate(14deg)}20%{transform:rotate(-12deg)}30%{transform:rotate(9deg)}40%{transform:rotate(-6deg)}50%{transform:rotate(0)}}' +
     '@media (prefers-reduced-motion:reduce){.ov,.bell{animation:none}}' +
+    '.pill{position:fixed;left:14px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:2147483500;display:flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:11px 16px 11px 12px;background:#c7f464;color:#0b3d28;font:700 13.5px Poppins,system-ui,sans-serif;box-shadow:0 10px 24px -8px rgba(11,61,40,.6),0 0 0 2px #0b3d28;cursor:pointer;animation:in .4s ease both}' +
+    '.pill span{font-size:17px;line-height:1}' +
     '@keyframes in{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:none}}' +
     '@keyframes out{to{opacity:0;transform:translateY(-12px)}}' +
     '@media (prefers-reduced-motion:reduce){.card,.card.out{animation:none}}' +
@@ -296,7 +298,7 @@
 
   // ---- system alerts: a big full-screen prompt on every login until alerts are on.
   // (Browsers never let a site skip their own "Allow" box, so this explains it in plain words first.)
-  var ASK_KEY = 'sh_alerts_later_' + role;
+  var ASK_KEY = 'sh_prompt_snooze2_' + role; // new key: old taps of "Not now" must not hide the new screen
   var promptEl = null;
   function closePrompt() { if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl); promptEl = null; }
   function snooze() { try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) {} closePrompt(); }
@@ -314,14 +316,16 @@
     if (opts.later) { var lt = el('button', 'later', opts.later); lt.type = 'button'; lt.addEventListener('click', snooze); bx.appendChild(lt); }
     ov.appendChild(bx); root.appendChild(ov); promptEl = ov;
   }
-  function askPermission() {
+  function askPermission(force) {
     if (promptEl) return;
-    try {
-      var later = Number(localStorage.getItem(ASK_KEY) || 0);
-      if (later && Date.now() - later < 2 * 3600000) return; // "Maybe later" hides it for 2 hours
-    } catch (e) {}
+    if (force !== true) {
+      try {
+        var later = Number(localStorage.getItem(ASK_KEY) || 0);
+        if (later && Date.now() - later < 30 * 60000) return; // "Maybe later" hides the big screen for 30 minutes
+      } catch (e) {}
+    }
     // Never cover the checkout form: wait until it is closed.
-    if (document.querySelector('#checkoutModal.active')) { setTimeout(askPermission, 8000); return; }
+    if (document.querySelector('#checkoutModal.active')) { setTimeout(function () { askPermission(force); }, 8000); return; }
     var seller = role === 'seller';
     var what = seller ? 'the moment you get a new order' : 'the moment your order is shipped or delivered';
     var supported = ('Notification' in window) && ('serviceWorker' in navigator) && ('PushManager' in window);
@@ -361,16 +365,30 @@
             if (r === 'granted') {
               ensurePush();
               showToast({ type: 'Delivered', title: 'Notifications are on', message: 'SellHub will now alert your phone, even when the website is closed.', date: new Date().toISOString() });
-            } else if (r === 'denied') { setTimeout(askPermission, 300); }
+            } else if (r === 'denied') { setTimeout(function () { askPermission(true); }, 300); }
           }, function () {});
         } catch (e) {}
       }
     });
   }
 
-  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 1200); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
+  // A small button that stays on the screen until alerts are on, so the big screen can always be reopened.
+  var pillEl = null;
+  function alertsOn() { try { return ('Notification' in window) && Notification.permission === 'granted'; } catch (e) { return false; } }
+  function showPill() {
+    if (pillEl || alertsOn()) return;
+    mount();
+    var b = el('button', 'pill'); b.type = 'button';
+    b.appendChild(el('span', '', '🔔')); b.appendChild(document.createTextNode('Turn on alerts'));
+    b.addEventListener('click', function () { askPermission(true); });
+    root.appendChild(b); pillEl = b;
+  }
+  function hidePill() { if (pillEl && pillEl.parentNode) pillEl.parentNode.removeChild(pillEl); pillEl = null; }
+  setInterval(function () { if (alertsOn()) hidePill(); }, 3000);
+
+  function start() { mount(); poll(); ensurePush(); setTimeout(askPermission, 1200); setTimeout(showPill, 2000); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
   // handy for testing / other pages
-  window.SHLive = { unsubscribe: dropPush, poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
+  window.SHLive = { prompt: function () { askPermission(true); }, unsubscribe: dropPush, poll: function () { schedule(true); }, test: function () { showToast({ id: 0, type: 'New Order', title: 'New order received!', message: 'Order #1234 from Ada: Ankara dress. Your payout: ₦12,000.', date: new Date().toISOString() }); chime(); } };
 })();
