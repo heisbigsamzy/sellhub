@@ -13,3 +13,11 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || req.mode !== 'navigate') return;
   e.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
 });
+// Tapping a system notification brings the person back to the open SellHub tab (or opens the site).
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) { if ('focus' in c) return c.focus(); }
+    return self.clients.openWindow('/');
+  }));
+});

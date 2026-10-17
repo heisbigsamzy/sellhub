@@ -124,6 +124,8 @@ function notifySellerWithdrawal(seller, withdrawal, paid) {
     ? `✅ Your withdrawal of ₦${withdrawal.netAmount.toLocaleString()} has been paid to your ${bankLine}.`
     : `⚠️ Your withdrawal of ₦${withdrawal.amount.toLocaleString()} was not approved, so the full amount has been returned to your SellHub wallet.` + (withdrawal.rejectReason ? ` Reason: ${withdrawal.rejectReason}` : ' Please check your bank details and try again.');
 
+  createSellerNotification(seller.email, null, paid ? 'Withdrawal Paid' : 'Withdrawal Returned',
+    paid ? 'Withdrawal paid' : 'Withdrawal not approved', text.replace(/^[^A-Za-z₦]+/, ''));
   const phone = seller.whatsappNumber || seller.businessPhone || seller.phone;
   if (phone) {
     sendWhatsApp(phone, `SellHub: ${text}`).catch(err => console.log('WhatsApp error (withdrawal):', err.message));
@@ -296,6 +298,7 @@ function creditPaystackPayment(reference, tx) {
   customer.transactions.unshift({ type: 'deposit', amount: payment.amount, reference, date: payment.creditedAt });
   writeJSON('customers.json', customers);
 
+  createNotification(customer.email, null, 'Deposit', 'Wallet funded', `₦${payment.amount.toLocaleString()} has been added to your wallet. Balance: ₦${customer.walletBalance.toLocaleString()}.`);
   notifyAdmin(
     `💰 Deposit received: ₦${payment.amount.toLocaleString()} from ${customer.fullName || customer.email} (${customer.email}). New wallet balance: ₦${customer.walletBalance.toLocaleString()}.`
   );
@@ -1116,6 +1119,14 @@ const server = http.createServer((req, res) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(css);
+    });
+    return;
+  }
+  if (req.method === 'GET' && pagePath === '/live-notify.js') {
+    fs.readFile(path.join(__dirname, 'live-notify.js'), (err, js) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(js);
     });
     return;
   }
@@ -2372,10 +2383,12 @@ const server = http.createServer((req, res) => {
   }
 
   // ---------- NOTIFICATIONS ----------
-  if (req.method === 'GET' && req.url === '/api/notifications') {
+  if (req.method === 'GET' && req.url.split('?')[0] === '/api/notifications') {
     const session = requireAuth(req, res, 'customer');
     if (!session) return;
-    const notifications = readJSON('notifications.json').filter(n => n.customerEmail === session.email);
+    let notifications = readJSON('notifications.json').filter(n => n.customerEmail === session.email);
+    // ?unread=1 is what the live pop-up poller uses: only what's still unread, newest 30.
+    if (/[?&]unread=1/.test(req.url)) notifications = notifications.filter(n => !n.read).slice(0, 30);
     return sendJSON(res, { ok: true, notifications });
   }
 
@@ -2949,10 +2962,11 @@ const server = http.createServer((req, res) => {
 
   // Lets the seller see reminders (and anything else routed this way in the
   // future) directly in-app, rather than relying only on the email.
-  if (req.method === 'GET' && req.url === '/api/seller/notifications') {
+  if (req.method === 'GET' && req.url.split('?')[0] === '/api/seller/notifications') {
     const session = requireAuth(req, res, 'seller');
     if (!session) return;
-    const notifications = readJSON('seller-notifications.json').filter(n => n.sellerEmail === session.email);
+    let notifications = readJSON('seller-notifications.json').filter(n => n.sellerEmail === session.email);
+    if (/[?&]unread=1/.test(req.url)) notifications = notifications.filter(n => !n.read).slice(0, 30);
     return sendJSON(res, { ok: true, notifications });
   }
 
