@@ -13,7 +13,6 @@
   var LIST_URL = role === 'seller' ? '/api/seller/notifications?unread=1' : '/api/notifications?unread=1';
   var READ_URL = role === 'seller' ? '/api/seller/notifications/mark-read' : '/api/notifications/mark-read';
   var STORE_KEY = 'sh_toasted_' + role;
-  var PROMPT_KEY = 'sh_alerts_prompt_' + role;
   var ICON = '/icon-192.png?v=4';
 
   var ICONS = {
@@ -47,15 +46,11 @@
     '.mt{font-size:11px;color:#7a8f84;margin-top:4px}' +
     '.x{flex:none;border:0;background:transparent;color:#7a8f84;font-size:20px;line-height:1;width:28px;height:28px;border-radius:8px;cursor:pointer;padding:0}' +
     '.x:hover{background:#eef3f0}' +
-    '.ask .btns{display:flex;gap:8px;margin-top:8px}' +
-    '.ask button.go{border:0;background:#0b3d28;color:#fff;font:600 13px Poppins,system-ui,sans-serif;padding:8px 14px;border-radius:999px;cursor:pointer}' +
-    '.ask button.no{border:0;background:#eef3f0;color:#41584c;font:600 13px Poppins,system-ui,sans-serif;padding:8px 14px;border-radius:999px;cursor:pointer}' +
     '@keyframes in{from{opacity:0;transform:translateY(-16px) scale(.97)}to{opacity:1;transform:none}}' +
     '@keyframes out{to{opacity:0;transform:translateY(-12px)}}' +
     '@media (prefers-reduced-motion:reduce){.card,.card.out{animation:none}}' +
     '</style><div class="stack" id="stack"></div>';
   var stack = root.getElementById('stack');
-  var askCard = null; // the "turn on alerts" card always stays below real notifications
 
   function mount() { if (!host.isConnected) document.body.appendChild(host); }
 
@@ -116,7 +111,7 @@
       if (n.id) markRead(n.id);
       (typeof window.SHNotifyOpen === 'function' ? window.SHNotifyOpen : defaultOpen)(n);
     });
-    stack.insertBefore(card, askCard && askCard.parentNode === stack ? askCard : null);
+    stack.appendChild(card);
     while (stack.children.length > 4) stack.removeChild(stack.firstChild);
     arm();
   }
@@ -231,32 +226,19 @@
     }).catch(function () { busy = false; }).then(function () { schedule(false); });
   }
 
-  // ---- one-time, polite ask for background alerts
+  // ---- system alerts: the browser's own permission question comes up on the person's first tap
+  // (browsers don't allow a site to skip that question, but we never add a second one of our own).
   function askPermission() {
     try {
       if (!('Notification' in window) || Notification.permission !== 'default') return;
-      var last = Number(localStorage.getItem(PROMPT_KEY) || 0);
-      if (last && Date.now() - last < 7 * 86400000) return;
     } catch (e) { return; }
-    mount();
-    var card = document.createElement('div');
-    card.className = 'card ask';
-    var ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = '🔔';
-    var tx = document.createElement('div'); tx.className = 'tx';
-    var ti = document.createElement('p'); ti.className = 'ti'; ti.textContent = 'Turn on alerts';
-    var ms = document.createElement('p'); ms.className = 'ms';
-    ms.textContent = role === 'seller' ? 'Get a pop-up the moment a new order comes in, even when this tab is in the background.' : 'Get a pop-up when your order status changes, even when this tab is in the background.';
-    var btns = document.createElement('div'); btns.className = 'btns';
-    var go = document.createElement('button'); go.className = 'go'; go.type = 'button'; go.textContent = 'Turn on';
-    var no = document.createElement('button'); no.className = 'no'; no.type = 'button'; no.textContent = 'Not now';
-    btns.appendChild(go); btns.appendChild(no);
-    tx.appendChild(ti); tx.appendChild(ms); tx.appendChild(btns);
-    card.appendChild(ic); card.appendChild(tx);
-    function done() { try { localStorage.setItem(PROMPT_KEY, String(Date.now())); } catch (e) {} removeCard(card); }
-    go.addEventListener('click', function () { try { Notification.requestPermission().then(done, done); } catch (e) { done(); } });
-    no.addEventListener('click', done);
-    stack.appendChild(card);
-    askCard = card;
+    function onTap() {
+      window.removeEventListener('pointerdown', onTap, true);
+      window.removeEventListener('keydown', onTap, true);
+      try { var p = Notification.requestPermission(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    }
+    window.addEventListener('pointerdown', onTap, true);
+    window.addEventListener('keydown', onTap, true);
   }
 
   function start() { mount(); poll(); window.addEventListener('focus', function () { schedule(true); }); window.addEventListener('online', function () { schedule(true); }); }
