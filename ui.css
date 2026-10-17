@@ -22,7 +22,7 @@ body.auth{background:radial-gradient(800px 520px at 85% -5%,#157a4c 0,rgba(21,12
 @media(min-height:760px){body.auth{align-items:center}}
 body.auth .card{max-width:440px!important;border:0!important;border-radius:30px!important;padding:32px 26px 28px!important;box-shadow:0 40px 80px -30px rgba(0,0,0,.65)!important}
 body.auth .logo{font-weight:700!important;font-size:19px!important;letter-spacing:-.02em;margin-bottom:22px!important}
-body.auth .logo-mark{width:34px!important;height:34px!important;border-radius:10px!important;box-shadow:0 8px 16px -8px rgba(15,122,74,.5)!important}
+body.auth .logo-mark{background:transparent!important;overflow:visible!important;width:34px!important;height:34px!important;border-radius:10px!important;box-shadow:none!important}
 body.auth h1{font-size:28px!important;font-weight:700!important;letter-spacing:-.035em!important;line-height:1.08!important;margin:0 0 20px!important}
 body.auth input,body.auth select,body.auth textarea{height:52px;padding:0 16px!important;border:1.5px solid var(--sh-line)!important;border-radius:14px!important;background:#F9FCFA!important;font-size:16px!important;color:var(--sh-ink)}
 body.auth input:focus,body.auth select:focus{border-color:var(--sh-g6)!important;background:#fff!important;box-shadow:0 0 0 4px rgba(20,154,92,.14)}
@@ -45,7 +45,7 @@ body.auth #phoneCountryWrap select{margin-top:0!important;height:52px!important;
 body.auth #phone{height:52px;margin-top:0!important}
 
 /* ---------- small-screen fixes (Poppins is wider than the old font) ---------- */
-header .logo-mark{background:#fff!important;box-shadow:none!important;width:32px!important;height:32px!important;border-radius:9px!important;overflow:hidden}
+header .logo-mark{background:transparent!important;box-shadow:none!important;width:32px!important;height:32px!important;border-radius:9px!important;overflow:visible}
 header .logo-mark::after{content:none!important}
 header .logo-mark img{width:100%!important;height:100%!important;object-fit:cover;position:static!important}
 .logout-btn{white-space:nowrap}
